@@ -11,7 +11,4 @@ def buscar_y_cargar(nombre_archivo):
 data_train = buscar_y_cargar("fraudTrain.csv")
 print(data_train.head())  # Descomenta esta línea para ver las primeras filas
 
-#Cargar también el archivo de test:
-data_test = buscar_y_cargar("fraudTest.csv")
-print(data_test.head())
 
