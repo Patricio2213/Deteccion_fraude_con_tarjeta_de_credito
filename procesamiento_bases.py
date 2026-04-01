@@ -3,13 +3,7 @@
 import numpy as np
 import pandas as pd
 
-#Cargar función de carga de archivos
-from Subida_data import buscar_y_cargar
-data_train=buscar_y_cargar("fraudTrain.csv")
-print("="*60)
-print("COLUMNAS DEL DATASET")
-print("="*60)
-print(data_train.columns)
+
 
 #Verificar presencia de nulos
 def ver_nulos(df):
@@ -58,32 +52,33 @@ def calcular_velocidad(data):
         .dt.total_seconds() / 3600
     )
 
-    # 4. Coordenadas anteriores
-    data["lat_prev"] = data.groupby("cc_num")["lat"].shift()
-    data["lon_prev"] = data.groupby("cc_num")["long"].shift()
+    # 4. Coordenadas anteriores de comercios(distancia entre casa es siempre igual por tarjeta)
+
+    data["merch_lat_prev"] = data.groupby("cc_num")["merch_lat"].shift()
+    data["merch_lon_prev"] = data.groupby("cc_num")["merch_long"].shift()
 
     # 5. Distancia real (Haversine)
     data["distancia_km"] = haversine(
-        data["lat_prev"],
-        data["lon_prev"],
-        data["lat"],
-        data["long"]
+        data["merch_lat_prev"],
+        data["merch_lon_prev"],
+        data["merch_lat"],
+        data["merch_long"]
     )
 
     # 6. Velocidad
     velocidad = data["distancia_km"] / tiempo_horas
 
-    #  Limpieza, deja en 0 valores infinitos, es decir velocidades donde el tiempo entre transacciones era 0
-    #velocidad = velocidad.replace([np.inf, -np.inf], np.nan)
-    #usarlo podría ocultar el comportamiento anomalo
-    # Cambiar por NaN valores extremos----cambiar esto en 0 esconde caracteristicas de fraudes
-    #velocidad[velocidad > 1000] = np.nan
+    #7.Crear columna para primeras compras
+    is_first_buy = velocidad.isna().astype(int)
+    #  Limpieza, dejar infinitos como un numero gigante para notar la anomalia
+    velocidad = velocidad.replace([np.inf, -np.inf], 10000)
+
     velocidad[velocidad < 0] = np.nan  # por seguridad, se mantiene pq no pueden ser menores de 0
 
-    # 8. Reemplazar NaN por 0
-    velocidad = velocidad.fillna(0)
+    # 8. Reemplazar NaN por -1, esto indica que para primeras transacciones la velocidad será -1
+    velocidad = velocidad.fillna(-1)
 
-    return velocidad
+    return velocidad, is_first_buy
 
 
 def zcore_monto(data):
@@ -99,43 +94,32 @@ def zcore_monto(data):
     return resultado
 
 
+
+
+
+
+
+
 # ===================================================================
-# EJECUTAR ANÁLISIS DEL DATASET
+# PROBAR NUEVAS COLUMNAS
 # ===================================================================
+from Subida_data import buscar_y_cargar
+data_train=buscar_y_cargar("fraudTrain.csv")
 
-print("\n" + "="*60)
-print("1. ANÁLISIS DE NULOS")
-print("="*60)
-ver_nulos(data_train)
-
-print("\n" + "="*60)
-print("2. ANÁLISIS DE DUPLICADOS")
-print("="*60)
-ver_duplicados(data_train)
-
-print("\n" + "="*60)
-print("3. RESUMEN ESTADÍSTICO DEL DATASET")
-print("="*60)
-resumen(data_train)
-
-print("\n" + "="*60)
-print("4. BALANCE DE CLASES (is_fraud)")
-print("="*60)
-print(balance_clases(data_train))
-
-print("\n" + "="*60)
-print("5. CÁLCULO DE VELOCIDAD DE TRANSACCIONES")
+print("1. CÁLCULO DE VELOCIDAD DE TRANSACCIONES")
 print("="*60)
 try:
-    velocidad = calcular_velocidad(data_train.copy())
+    velocidad,is_first_buy = calcular_velocidad(data_train.copy())
     print("Velocidad calculada exitosamente")
     print("Primeras 10 velocidades:")
     print(velocidad.head(10))
+    print("\nPrimeras 10 is_first_buy (1 = Primera compra, 0 = Historial):")
+    print(is_first_buy.head(10))
 except Exception as e:
     print(f"Error al calcular velocidad: {e}")
 
 print("\n" + "="*60)
-print("6. CÁLCULO DE Z-SCORE DE MONTO")
+print("2. CÁLCULO DE Z-SCORE DE MONTO")
 print("="*60)
 try:
     zscore = zcore_monto(data_train)
@@ -145,10 +129,13 @@ try:
 except Exception as e:
     print(f"Error al calcular z-score: {e}")
 
-
-
-
-
-
-
-
+print("\n" + "=" * 60)
+print("3. CÁLCULO DE HAVERSINE")
+print("=" * 60)
+try:
+    haversine= haversine(data_train["lat"],data_train["long"],data_train["merch_lat"],data_train["merch_long"])
+    print("Haversine calculada exitosamente")
+    print("Primeras 10 distancias:")
+    print(data_train["haversine"].head(10))
+except Exception as e:
+        print(f"Error al calcular haversine: {e}")
