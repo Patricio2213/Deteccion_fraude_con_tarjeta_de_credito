@@ -42,30 +42,29 @@ print("\n" + "="*60)
 print("5. CÁLCULO DE VELOCIDAD DE TRANSACCIONES")
 print("="*60)
 try:
-    data_train["velocidad"] = calcular_velocidad(data_train)
+    data_train["velocidad"],data_train["is_first_buy"] = calcular_velocidad(data_train)
     print("Velocidad calculada exitosamente")
     print("Primeras 10 velocidades:")
     print(data_train["velocidad"].head(10))
 except Exception as e:
     print(f"Error al calcular velocidad: {e}")
     print("\n" + "=" * 60)
-    print("5. CÁLCULO DE VELOCIDAD DE TRANSACCIONES")
-    print("=" * 60)
+
 
 print("\n" + "=" * 60)
-print("5. CÁLCULO DE HAVERSINE")
+print("6. CÁLCULO DE HAVERSINE")
 print("=" * 60)
 try:
-    data_train["haversine"] = haversine(data_train["lat"],data_train["long"],data_train["merch_lat"],data_train["merch_long"])
-    print("Haversine calculada exitosamente")
+    data_train["distancia"] = haversine(data_train["lat"],data_train["long"],data_train["merch_lat"],data_train["merch_long"])
+    print("Distancia calculada exitosamente")
     print("Primeras 10 distancias:")
-    print(data_train["haversine"].head(10))
+    print(data_train["distancia"].head(10))
 except Exception as e:
-        print(f"Error al calcular haversine: {e}")
+    print(f"Error al calcular distancia: {e}")
 
 
 print("\n" + "="*60)
-print("6. CÁLCULO DE Z-SCORE DE MONTO")
+print("7. CÁLCULO DE Z-SCORE DE MONTO")
 print("="*60)
 try:
     data_train["zscore"] = zcore_monto(data_train)
@@ -84,7 +83,9 @@ except Exception as e:
 from EDA import separar_columnas
 num_columns, cat_columns=separar_columnas(data_train)
 #Histogramas
-from EDA import histogramas
-#var_claves_num=["amt","velocidad_kmh","distancia_km","monto_zcore"]
-#histogramas(data_train,var_claves_num)
-#print(data_train["velocidad"])
+
+from EDA import graficar_densidad
+
+var_claves_num=["amt","velocidad","distancia","monto_zcore"]
+graficar_densidad(data_train,var_claves_num,target="is_fraud")
+
