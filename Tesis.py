@@ -86,6 +86,6 @@ num_columns, cat_columns=separar_columnas(data_train)
 
 from EDA import graficar_densidad
 
-var_claves_num=["amt","velocidad","distancia","zcore"]
+var_claves_num=["amt","velocidad","distancia","zscore"]
 graficar_densidad(data_train,var_claves_num,target="is_fraud")
 
