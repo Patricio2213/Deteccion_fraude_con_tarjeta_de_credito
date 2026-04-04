@@ -1,5 +1,5 @@
 #Cargar base de datos para entrenamiento
-from sys import exception
+
 
 from procesamiento_bases import nuevo_comercio
 from Subida_data import buscar_y_cargar
@@ -114,7 +114,8 @@ print("="*60)
 
 #----------------------------------------------
 #EDA
-from EDA import graficar_densidad, boxplots, graficar_reloj_fraude,graficar_riesgo_categorico,graficar_correlacion
+from EDA import graficar_densidad, boxplots, graficar_reloj_fraude,graficar_correlacion, scatter_edad_monto
+from EDA import grafico_tasa_por_variable, graficar_riesgo_porcategoria
 
 print("\n" + "="*60)
 print("COMENZANDO EL EDA")
@@ -125,13 +126,34 @@ print("\n" + "="*60)
 print("1. RESUMEN ESTADÍSTICO DEL DATASET")
 print("="*60)
 resumen(data_train)
-#var_claves_num=["amt","velocidad","distancia","zscore","edad","tasa_categoria","city_pob"]
+var_claves_num=["amt","velocidad","distancia","zscore","edad","tasa_categoria"]
 var_claves_cat=["gender","merchant","category","city","job","es_nuevo","is_first_buy"]
 
-#graficar_densidad(data_train,var_claves_num,target="is_fraud")
-#boxplots(data_train,var_claves_num,target="is_fraud")
-#graficar_reloj_fraude(data_train)
+graficar_densidad(data_train,var_claves_num,target="is_fraud")
+boxplots(data_train,var_claves_num,target="is_fraud")
+graficar_reloj_fraude(data_train)
 
+grafico_tasa_por_variable(data_train, 'category')
+grafico_tasa_por_variable(data_train, 'es_nuevo')
 
+print("Visualizando Relación Edad vs Monto")
+scatter_edad_monto(data_train, target="is_fraud")
+
+print("Analizando Riesgo en Comercios Nuevos")
+grafico_tasa_por_variable(data_train, "es_nuevo")
+
+print("Ranking de Categorías más Peligrosas")
+graficar_riesgo_porcategoria(data_train, "category")
+
+scatter_edad_monto(data_train) #edad en la que roban y cuanto?
+
+grafico_tasa_por_variable(data_train, "es_nuevo") #es peligroso un "comercio nuevo"
+
+graficar_riesgo_porcategoria(data_train, "category") #en que categorías hay + fraude?
+
+grafico_tasa_por_variable(data_train, "gender") #influye el genero en la probabilidad?
+
+from EDA import graficar_reloj_fraude
+graficar_reloj_fraude(data_train)
 
 

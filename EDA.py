@@ -134,3 +134,28 @@ def graficar_correlacion(df, columnas_num):
     plt.title("Mapa de Calor: Multicolinealidad de Variables Numéricas")
     plt.tight_layout()
     plt.show()
+
+def graficar_riesgo_porcategoria(df, columna, target= "is_fraud"):
+    plt.figure(figsize=(12,6))
+    riesgo= df.groupby(columna)[target].mean().sort_values(ascending=False) * 100
+    sns.barplot(x=riesgo.values, y=riesgo.index, palette="Reds_r")
+    plt.title(f"Tasa de riesgo de fraude por {columna}")
+    plt.xlabel("Porcentaje de Fraude en esta categoría")
+    plt.show()
+
+def grafico_tasa_por_variable(df, columna, target="is_fraud"):
+    plt.figure(figsize=(12,5))
+    tasa= df.groupby(columna)[target].mean().sort_values(ascending=False) * 100
+    sns.barplot(x=tasa.index, y=tasa.values, palette= "rocket")
+    plt.xticks(rotation=45)
+    plt.title(f"Probabilidad de fraude por {columna}")
+    plt.ylabel("Porcentaje de probabilidad")
+    plt.show()
+
+def scatter_edad_monto(df, target="is_fraud"):
+    plt.figure(figsize=(10,6))
+    sns.scatterplot(data= df, x="edad", y="amt", hue=target, alpha=0.3)
+    plt.title("Relación de la Edad vs Monto Transacción")
+    plt.show()
+
+

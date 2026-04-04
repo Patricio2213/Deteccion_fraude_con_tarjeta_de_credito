@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 
 
-
 #Verificar presencia de nulos
 def ver_nulos(df):
     nulos=df.isna().sum()
