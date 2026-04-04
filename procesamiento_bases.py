@@ -148,6 +148,7 @@ def calcular_anomaliaencategoria(data): #en vez de ver cuanto gastó, podemos ve
     compras_x_categoria = data.groupby(["cc_num","category"])["category"].transform("count")
     tasa_categoria = compras_x_categoria / total_compras
     return tasa_categoria #buscar ruptura en los hábitos de consumo
+#Comentario(pato): Mas que en que gastó no sería en que tipo de local se gastó (Importante de diferenciar en el analisis)
 
 def nuevo_comercio(data, meses_calentamiento=3): #estudiar si el fraude suele ocurrir en establecimientos donde el cliente no ha comprado antes
     data = data.sort_values(["cc_num", "trans_date_trans_time"])

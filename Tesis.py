@@ -1,7 +1,7 @@
 #Cargar base de datos para entrenamiento
 from sys import exception
 
-from PythonProject.procesamiento_bases import nuevo_comercio
+from procesamiento_bases import nuevo_comercio
 from Subida_data import buscar_y_cargar
 data_train=buscar_y_cargar("fraudTrain.csv")
 
@@ -24,11 +24,6 @@ print("\n" + "="*60)
 print("2. ANÁLISIS DE DUPLICADOS")
 print("="*60)
 ver_duplicados(data_train)
-
-print("\n" + "="*60)
-print("3. RESUMEN ESTADÍSTICO DEL DATASET")
-print("="*60)
-resumen(data_train)
 
 print("\n" + "="*60)
 print("4. BALANCE DE CLASES (is_fraud)")
@@ -77,28 +72,13 @@ try:
 except Exception as e:
     print(f"Error al calcular z-score: {e}")
 
-
-
-
-
-##EDA
-#separar columnas
-#from EDA import separar_columnas
-#num_columns, cat_columns=separar_columnas(data_train)
-#Histogramas
-
-#from EDA import graficar_densidad
-
-#var_claves_num=["amt","velocidad","distancia","zscore"]
-#graficar_densidad(data_train,var_claves_num,target="is_fraud")
-
 print("\n" + "="*60)
 print("8. Cálculo de EDAD del cliente")
 print("="*60)
 try:
-    data_train["Edad"] = calcular_edad(data_train)
+    data_train["edad"] = calcular_edad(data_train)
     print("Un vistazo de 10 edades para confirmar procedimiento")
-    print(data_train["Edad"].head(10))
+    print(data_train["edad"].head(10))
 except Exception as e:
     print(f"Error al calcular la edad: {e}")
 
@@ -131,4 +111,27 @@ print(data_train["es_nuevo"].value_counts())
 print("\nDISTRIBUCIÓN EN PORCENTAJE (%):")
 print(data_train["es_nuevo"].value_counts(normalize=True) * 100)
 print("="*60)
+
+#----------------------------------------------
+#EDA
+from EDA import graficar_densidad, boxplots, graficar_reloj_fraude,graficar_riesgo_categorico,graficar_correlacion
+
+print("\n" + "="*60)
+print("COMENZANDO EL EDA")
+#separar columnas
+from EDA import separar_columnas
+num_columns, cat_columns=separar_columnas(data_train)
+print("\n" + "="*60)
+print("1. RESUMEN ESTADÍSTICO DEL DATASET")
+print("="*60)
+resumen(data_train)
+#var_claves_num=["amt","velocidad","distancia","zscore","edad","tasa_categoria","city_pob"]
+var_claves_cat=["gender","merchant","category","city","job","es_nuevo","is_first_buy"]
+
+#graficar_densidad(data_train,var_claves_num,target="is_fraud")
+#boxplots(data_train,var_claves_num,target="is_fraud")
+#graficar_reloj_fraude(data_train)
+
+
+
 
