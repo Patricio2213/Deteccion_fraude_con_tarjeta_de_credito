@@ -114,14 +114,16 @@ print("="*60)
 
 #----------------------------------------------
 #EDA
-from EDA import graficar_densidad, boxplots, graficar_reloj_fraude,graficar_correlacion, scatter_edad_monto
-from EDA import grafico_tasa_por_variable, graficar_riesgo_porcategoria
+
+from EDA import graficar_densidad, boxplots, graficar_reloj_fraude, graficar_correlacion
+from EDA import grafico_tasa_por_variable, graficar_riesgo_porcategoria, separar_columnas
+from EDA import tabla_estadisticas_fraude
+
 
 print("\n" + "="*60)
 print("COMENZANDO EL EDA")
-#separar columnas
-from EDA import separar_columnas
 num_columns, cat_columns=separar_columnas(data_train)
+
 print("\n" + "="*60)
 print("1. RESUMEN ESTADÍSTICO DEL DATASET")
 print("="*60)
@@ -134,26 +136,22 @@ boxplots(data_train,var_claves_num,target="is_fraud")
 graficar_reloj_fraude(data_train)
 
 grafico_tasa_por_variable(data_train, 'category')
-grafico_tasa_por_variable(data_train, 'es_nuevo')
-
-print("Visualizando Relación Edad vs Monto")
-scatter_edad_monto(data_train, target="is_fraud")
-
-print("Analizando Riesgo en Comercios Nuevos")
-grafico_tasa_por_variable(data_train, "es_nuevo")
+grafico_tasa_por_variable(data_train, 'es_nuevo')# Analizando Riesgo en Comercios Nuevos
 
 print("Ranking de Categorías más Peligrosas")
-graficar_riesgo_porcategoria(data_train, "category")
-
-scatter_edad_monto(data_train) #edad en la que roban y cuanto?
-
-grafico_tasa_por_variable(data_train, "es_nuevo") #es peligroso un "comercio nuevo"
-
 graficar_riesgo_porcategoria(data_train, "category") #en que categorías hay + fraude?
 
 grafico_tasa_por_variable(data_train, "gender") #influye el genero en la probabilidad?
 
-from EDA import graficar_reloj_fraude
-graficar_reloj_fraude(data_train)
+tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
 
+print("\n" + "="*70)
+print("EXPLORACIÓN PROFUNDA")
+print("="*70)
+
+print("\n Matriz de correlación...")
+graficar_correlacion(data_train, var_claves_num)
+
+print("\nTabla de estadísticas comparativas")
+tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
 

@@ -20,10 +20,8 @@ def separar_columnas(df, target="is_fraud", excluir=None):
 #DENSIDAD
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-import matplotlib.pyplot as plt
-import seaborn as sns
 import pandas as pd
+import numpy as np
 
 def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
 
@@ -143,19 +141,69 @@ def graficar_riesgo_porcategoria(df, columna, target= "is_fraud"):
     plt.xlabel("Porcentaje de Fraude en esta categoría")
     plt.show()
 
+
 def grafico_tasa_por_variable(df, columna, target="is_fraud"):
-    plt.figure(figsize=(12,5))
-    tasa= df.groupby(columna)[target].mean().sort_values(ascending=False) * 100
-    sns.barplot(x=tasa.index, y=tasa.values, palette= "rocket")
-    plt.xticks(rotation=45)
-    plt.title(f"Probabilidad de fraude por {columna}")
-    plt.ylabel("Porcentaje de probabilidad")
+    """
+    Gráfico de barras mostrando tasa de fraude por categoría.
+    Colores consistentes: rojo si > promedio, azul si < promedio
+    """
+    plt.figure(figsize=(12, 6))
+
+    # Calcular tasa por categoría
+    tasa = df.groupby(columna)[target].mean().sort_values(ascending=False) * 100
+
+    # Calcular promedio general
+    tasa_promedio = df[target].mean() * 100
+
+    # Asignar colores: rojo si ALTO riesgo, azul si BAJO
+    colores = ["darkorange" if x > tasa_promedio else "steelblue" for x in tasa.values]
+
+    # Crear bar plot
+    ax = sns.barplot(x=tasa.index, y=tasa.values, palette=colores, edgecolor="black")
+
+    # Línea de referencia (promedio)
+    ax.axhline(y=tasa_promedio, color="red", linestyle="--", linewidth=2,
+               label=f"Promedio ({tasa_promedio:.2f}%)")
+
+    # Etiquetas
+    plt.xticks(rotation=45, ha='right')
+    plt.xlabel(columna, fontweight='bold', fontsize=11)
+    plt.ylabel("Tasa de Fraude (%)", fontweight='bold', fontsize=11)
+    plt.title(f"Riesgo de Fraude por {columna}\n(Rojo: Mayor Riesgo | Azul: Menor Riesgo)",
+              fontsize=12, fontweight='bold', pad=15)
+    plt.grid(axis='y', alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
     plt.show()
 
-def scatter_edad_monto(df, target="is_fraud"):
-    plt.figure(figsize=(10,6))
-    sns.scatterplot(data= df, x="edad", y="amt", hue=target, alpha=0.3)
-    plt.title("Relación de la Edad vs Monto Transacción")
-    plt.show()
+
+def tabla_estadisticas_fraude(df, var_numericas, target="is_fraud"):
+    """
+    Tabla comparativa mostrando estadísticas para legítimas vs fraudulentas
+    PARA PONER EN TESIS (como tabla numérica, no gráfico)
+    """
+    resultados = []
+
+    for col in var_numericas:
+        legit = df[df[target] == 0][col]
+        fraud = df[df[target] == 1][col]
+
+        resultados.append({
+            'Variable': col,
+            'Legít_Media': f"{legit.mean():.2f}",
+            'Legít_Std': f"{legit.std():.2f}",
+            'Fraude_Media': f"{fraud.mean():.2f}",
+            'Fraude_Std': f"{fraud.std():.2f}",
+            'Diferencia': f"{(fraud.mean() - legit.mean()):.2f}",
+            'Cambio_%': f"{((fraud.mean() - legit.mean()) / legit.mean() * 100):.1f}%"
+        })
+
+    tabla = pd.DataFrame(resultados)
+    print("\n" + "=" * 100)
+    print("TABLA: COMPARACIÓN DE ESTADÍSTICAS (FRAUDE vs LEGÍTIMO)")
+    print("=" * 100)
+    print(tabla.to_string(index=False))
+
+    return tabla
 
 
