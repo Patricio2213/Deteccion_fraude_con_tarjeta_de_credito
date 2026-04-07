@@ -143,8 +143,6 @@ graficar_riesgo_porcategoria(data_train, "category") #en que categorías hay + f
 
 grafico_tasa_por_variable(data_train, "gender") #influye el genero en la probabilidad?
 
-tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
-
 print("\n" + "="*70)
 print("EXPLORACIÓN PROFUNDA")
 print("="*70)
