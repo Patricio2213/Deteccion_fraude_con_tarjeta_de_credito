@@ -153,3 +153,20 @@ graficar_correlacion(data_train, var_claves_num)
 print("\nTabla de estadísticas comparativas")
 tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
 
+
+
+stats_vel_original = data_train.groupby('is_fraud')['velocidad'].describe(percentiles=[.25, .5, .75])
+
+#  Cálculo de los componentes del Boxplot
+stats_vel_original['IQR'] = stats_vel_original['75%'] - stats_vel_original['25%']
+
+# Bigote Superior: Donde estadísticamente empiezan los outliers
+stats_vel_original['Bigote_Superior'] = stats_vel_original['75%'] + (1.5 * stats_vel_original['IQR'])
+
+# Mostrar la tabla
+print("="*65)
+print("TABLA ESTADÍSTICA")
+print("="*65)
+print(stats_vel_original.T)
+
+

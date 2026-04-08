@@ -143,10 +143,7 @@ def graficar_riesgo_porcategoria(df, columna, target= "is_fraud"):
 
 
 def grafico_tasa_por_variable(df, columna, target="is_fraud"):
-    """
-    Gráfico de barras mostrando tasa de fraude por categoría.
-    Colores consistentes: rojo si > promedio, azul si < promedio
-    """
+
     plt.figure(figsize=(12, 6))
 
     # Calcular tasa por categoría
@@ -178,10 +175,7 @@ def grafico_tasa_por_variable(df, columna, target="is_fraud"):
 
 
 def tabla_estadisticas_fraude(df, var_numericas, target="is_fraud"):
-    """
-    Tabla comparativa mostrando estadísticas para legítimas vs fraudulentas
-    PARA PONER EN TESIS (como tabla numérica, no gráfico)
-    """
+
     resultados = []
 
     for col in var_numericas:
@@ -205,5 +199,7 @@ def tabla_estadisticas_fraude(df, var_numericas, target="is_fraud"):
     print(tabla.to_string(index=False))
 
     return tabla
+
+
 
 
