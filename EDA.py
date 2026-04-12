@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import numpy as np
+from scipy import stats
 
 def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
 
@@ -60,27 +61,49 @@ def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
         plt.show()
 
 #BOXPLOT
-def boxplots(df, columnas_num, target="is_fraud"):
-    print(f"Generando {len(columnas_num)} Boxplots...\n")
+def boxplots_con_tabla(df, columnas_num, target="is_fraud"):
+    print(f"Generando {len(columnas_num)} Boxplots con sus tablas estadísticas...\n")
 
     for col in columnas_num:
-        plt.figure(figsize=(8, 6))
-
+        #se genera el gráfico
+        plt.figure(figsize=(8, 5))
         sns.boxplot(
             data=df,
             x=target,
             y=col,
             palette=["steelblue", "darkorange"],
-            showfliers=True  # CRÍTICO: True para ver los outliers (el fraude)
+            showfliers=True
         )
-
         plt.title(f"Análisis de Extremos: {col} vs Fraude")
-        plt.xlabel("Es Fraude (0 = No, 1 = Sí)")
-        plt.ylabel(col)
         plt.grid(axis='y', linestyle='--', alpha=0.7)
-
-        plt.tight_layout()
         plt.show()
+
+        # Cálculo de los componentes del Boxplot
+        # describe para obtener 25%, 50% (mediana) y 75%
+        stats = df.groupby(target)[col].describe(percentiles=[.25, .5, .75])
+
+        # Cálculo de IQR
+        stats['IQR'] = stats['75%'] - stats['25%']
+
+        # Cálculo de Bigotes
+        # El bigote superior es Q3 + 1.5 * IQR
+        stats['Bigote_Superior'] = stats['75%'] + (1.5 * stats['IQR'])
+        stats['Bigote_Inferior'] = stats['25%'] - (1.5 * stats['IQR'])
+
+        # Identificación de Outliers (Valores fuera de los bigotes)
+        def contar_outliers(group):
+            b_sup = group.quantile(0.75) + 1.5 * (group.quantile(0.75) - group.quantile(0.25))
+            return (group > b_sup).sum()
+
+        stats['Cant_Outliers'] = df.groupby(target)[col].apply(contar_outliers)
+
+        # Tabla para presentación
+        print(f"ESTADÍSTICAS DE BOXPLOT PARA: {col}")
+        # Transponemos (.T) para que sea más fácil de leer
+        columnas_finales = ['count', 'min', '25%', '50%', '75%', 'max', 'IQR', 'Bigote_Inferior', 'Bigote_Superior',
+                            'Cant_Outliers']
+        print(stats[columnas_finales].T)
+        print("-" * 60)
 
 #Reloj fraude
 def graficar_reloj_fraude(df):
@@ -200,6 +223,48 @@ def tabla_estadisticas_fraude(df, var_numericas, target="is_fraud"):
 
     return tabla
 
+
+
+def generar_tablas_tesis(df, var_numericas, target="is_fraud"):
+    res_descriptivo = []
+    res_comparativo = []
+
+    for col in var_numericas:
+        # Separar grupos según is_fraud [1, 2]
+        legit = df[df[target] == 0][col].dropna()
+        fraud = df[df[target] == 1][col].dropna()
+
+        # --- TABLA A: DESCRIPTIVA (Mediana e IQR) ---
+        med_l, iqr_l = legit.median(), legit.quantile(0.75) - legit.quantile(0.25)
+        med_f, iqr_f = fraud.median(), fraud.quantile(0.75) - fraud.quantile(0.25)
+
+        res_descriptivo.append({
+            'Variable': col,
+            'Mediana_Legít': f"{med_l:.2f}",
+            'IQR_Legít': f"{iqr_l:.2f}",
+            'Mediana_Fraude': f"{med_f:.2f}",
+            'IQR_Fraude': f"{iqr_f:.2f}"
+        })
+
+        # --- TABLA B: COMPARATIVA (Métricas de Diferencia) ---
+        # Cohen's d
+        n1, n2 = len(legit), len(fraud)
+        var1, var2 = legit.var(), fraud.var()
+        pooled_std = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
+        cohen_d = (fraud.mean() - legit.mean()) / pooled_std if pooled_std != 0 else 0
+
+        # KS Statistic y Mann-Whitney U
+        ks_stat, _ = stats.ks_2samp(legit, fraud)
+        _, p_val = stats.mannwhitneyu(legit, fraud, alternative='two-sided')
+
+        res_comparativo.append({
+            'Variable': col,
+            'Cohen_d': f"{cohen_d:.3f}",
+            'KS_Stat': f"{ks_stat:.3f}",
+            'MWU_p-val': f"{p_val:.4e}"
+        })
+
+    return pd.DataFrame(res_descriptivo), pd.DataFrame(res_comparativo)
 
 
 
