@@ -43,6 +43,8 @@ def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
         if limite_superior > limite_inferior:
             plt.xlim(limite_inferior, limite_superior)
 
+            # Guardar el gráfico con el nombre de la columna
+        plt.savefig(f"densidad_{col}.pdf", bbox_inches='tight', dpi=300)
         plt.tight_layout()
         plt.show()
  #EDA PROFESOR
@@ -73,7 +75,8 @@ def make_barplot(dataframe, cat_var,top):
     # Controlar las lineas horizontales y verticales
     my_fig.grid(axis='x', visible=False)
     my_fig.grid(axis='y', visible=True)
-
+    # Guardar el gráfico usando el nombre de la variable analizada
+    plt.savefig(f"barplot_{cat_var}.pdf", bbox_inches='tight', dpi=300)
     # Mostrar la figura
     plt.tight_layout()
     plt.show()
@@ -118,7 +121,8 @@ def make_boxplot(dataframe, num_var, unit=''):
         fontfamily='monospace',
         bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray')
     )
-
+    # Guardar el gráfico usando el nombre de la variable analizada
+    plt.savefig(f"boxplot_{num_var}.pdf", bbox_inches='tight', dpi=300)
     # Mostrar la figura
     plt.tight_layout()
     plt.show()
@@ -136,7 +140,7 @@ def make_heat_map(dataframe, num_vars):
     # Crear el heatmap
     sns.set_theme(font_scale=1.2)
     sns.heatmap(corr_matrix, mask=mask, annot=True, cmap='coolwarm', fmt=".2f")
-
+    plt.savefig("coor_matrix", bbox_inches='tight')
     # Mostrar la figura
     plt.tight_layout()
     plt.show()
@@ -217,23 +221,33 @@ def make_grouped_boxplots(dataframe, num_vars, cat_vars, type_plot='boxplot', un
         plt.tight_layout()
         plt.show()
 
-def make_stacked_barplots(dataframe, cat_vars):
-    # Validar número de variables categóricas
-    if len(cat_vars) < 2:
-        raise ValueError("Se requieren al menos dos variables categóricas")
 
-    # Generar todas las posibles combinaciones de variables
-    for var1, var2 in itertools.permutations(cat_vars, 2):
-        # Tabla de contingencia normalizada por filas
-        crosstab = pd.crosstab(dataframe[var1], dataframe[var2], normalize='index')*100
+def make_stacked_barplots(dataframe, cat_vars, top=10):
+    # Forzamos que 'is_fraud' esté siempre presente para la comparación
+    target = "is_fraud"
 
-        # Tamaño de la figura
+    # Quitamos 'is_fraud' de cat_vars si es que viene adentro, para no compararlo consigo mismo
+    variables_a_graficar = [v for v in cat_vars if v != target]
+
+    for var1 in variables_a_graficar:
+        # 1. Identificamos las categorías más frecuentes del eje X
+        top_categories = dataframe[var1].value_counts().head(top).index
+
+        # 2. Filtramos el dataframe
+        df_filtered = dataframe[dataframe[var1].isin(top_categories)]
+
+        # 3. Tabla de contingencia (Cruce Variable x Fraude)
+        # Usamos df_filtered[target] para que siempre use la columna de fraude
+        crosstab = pd.crosstab(df_filtered[var1], df_filtered[target], normalize='index') * 100
+
+        # Reordenamos por frecuencia
+        crosstab = crosstab.reindex(top_categories)
+
+        # --- Gráfico ---
         plt.figure(figsize=(16, 9))
+        ax = crosstab.plot(kind='bar', stacked=True, ax=plt.gca(), color=['steelblue', 'darkorange'])
 
-        # Crear el diagrama de barras
-        ax = crosstab.plot(kind='bar', stacked=True, figsize=(16, 9))
-
-        # Etiquetas de los ejes
+        plt.title(f"Relación: {var1} (Top {top}) vs {target}", fontsize=16, pad=20)
         plt.ylabel('Percentage (%)')
         plt.xlabel(var1)
 
@@ -241,30 +255,18 @@ def make_stacked_barplots(dataframe, cat_vars):
         for i, row in enumerate(crosstab.values):
             cumulative = 0
             for j, value in enumerate(row):
-                if value > 0:
+                if value > 1:
                     ax.text(
                         i,
-                        cumulative + value/2,
-                        f"{value:.2f}%",
-                        ha='center',
-                        va='center',
-                        color='white',
-                        fontweight='bold',
-                        fontsize=9
+                        cumulative + value / 2,
+                        f"{value:.1f}%",
+                        ha='center', va='center', color='white', fontweight='bold', fontsize=10
                     )
                 cumulative += value
 
-        # Leyenda
-        plt.legend(title=var2, bbox_to_anchor=(1.05, 1), loc='upper left')
-
-        # Control de la grilla
-        plt.grid(axis='x', visible=False)
-        plt.grid(axis='y', visible=True)
-
-        # Rotación de las etiquetas
-        plt.xticks(rotation=0)
-
-        # Mostrar la figura
+        plt.legend(title=target, bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.grid(axis='y', visible=True, alpha=0.3)
+        plt.xticks(rotation=45, ha='right')
         plt.tight_layout()
         plt.show()
 
@@ -342,27 +344,57 @@ def graficar_reloj_fraude(df):
     plt.tight_layout()
     plt.show()
 
+def graficar_temporalidad_fraude(df):
+    df_temp = df.copy()
+        # Aseguramos formato datetime
+    df_temp["trans_date_trans_time"] = pd.to_datetime(df_temp["trans_date_trans_time"])
 
-    # Calculamos la correlación de Pearson
-def graficar_correlacion(df, columnas_num):
-    print("Generando Matriz de Correlación...")
+        # Extraemos dimensiones micro
+    df_temp["año"] = df_temp["trans_date_trans_time"].dt.year
+    df_temp["mes"] = df_temp["trans_date_trans_time"].dt.month
+    df_temp["hora"] = df_temp["trans_date_trans_time"].dt.hour
 
-    plt.figure(figsize=(10, 8))
-    matriz_corr = df[columnas_num].corr()
-
-    sns.heatmap(
-        matriz_corr,
-        annot=True,  # Muestra el número exacto
-        fmt=".2f",  # 2 decimales
-        cmap="coolwarm",  # Colores fríos y cálidos
-        vmin=-1,
-        vmax=1,
-        linewidths=0.5
-    )
-
-    plt.title("Mapa de Calor: Correlación de Variables Numéricas")
+        # --- 1. COMPORTAMIENTO POR AÑO ---
+    plt.figure(figsize=(12, 6))
+      # Calculamos la tasa agrupando por año
+    tasa_anual = df_temp.groupby("año")["is_fraud"].mean() * 100
+    sns.barplot(x=tasa_anual.index, y=tasa_anual.values, color="blue")
+    plt.title("Evolución Anual: ¿Está aumentando el fraude año a año?", fontsize=14)
+    plt.ylabel("% de Fraude")
+    plt.savefig("temp_1_anual.pdf", bbox_inches='tight')
     plt.tight_layout()
     plt.show()
+
+        # --- 2. COMPORTAMIENTO POR MES (ESTACIONALIDAD) ---
+    plt.figure(figsize=(12, 6))
+        # Calculamos la tasa agrupando por mes
+    tasa_mensual = df_temp.groupby("mes")["is_fraud"].mean() * 100
+    sns.lineplot(x=tasa_mensual.index, y=tasa_mensual.values, marker="s", color="darkorange", linewidth=3)
+    plt.title("Estacionalidad Mensual: ¿Hay meses más peligrosos?", fontsize=14)
+    plt.xticks(range(1, 13), ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'])
+    plt.ylabel("% de Fraude")
+    plt.grid(alpha=0.3)
+    plt.savefig("temp_2_mensual.pdf", bbox_inches='tight')
+    plt.tight_layout()
+    plt.show()
+
+        # --- 3. EL "RELOJ" COMPARATIVO (AÑO VS HORA) ---
+    plt.figure(figsize=(12, 6))
+        # Aquí comparamos cómo cambia el reloj según el año
+    tasa_hora_año = df_temp.groupby(["hora", "año"])["is_fraud"].mean().reset_index()
+    tasa_hora_año["is_fraud"] *= 100
+
+    sns.lineplot(data=tasa_hora_año, x="hora", y="is_fraud", hue="año", marker="o")
+    plt.title("Reloj del Criminal: Comparativa por Años", fontsize=14)
+    plt.xlabel("Hora del Día")
+    plt.ylabel("% de Fraude")
+    plt.xticks(range(0, 24))
+    plt.legend(title="Año")
+    plt.savefig("temp_3_comparativo.pdf", bbox_inches='tight')
+    plt.tight_layout()
+    plt.show()
+
+
 
 def graficar_riesgo_porcategoria(df, columna, target= "is_fraud"):
     plt.figure(figsize=(12,6))

@@ -20,6 +20,40 @@ num_columns = data_train.select_dtypes(include=['number']).columns
 # ===================================================================
 # EJECUTAR ANÁLISIS DEL DATASET
 # ===================================================================
+#  Identificador único de persona
+data_train['persona_id'] = (
+    data_train['first'].astype(str) + "_" +
+    data_train['last'].astype(str) + "_" +
+    data_train['gender'].astype(str) + "_" +
+    data_train['dob'].astype(str) + "_" +
+    data_train['lat'].astype(str) + "_" +
+    data_train['long'].astype(str)
+)
+
+# Cuántos cc_num distintos tiene cada persona
+tarjetas_por_persona = (
+    data_train.groupby('persona_id')['cc_num']
+    .nunique()
+    .reset_index()
+)
+
+tarjetas_por_persona.columns = ['persona_id', 'cantidad_tarjetas']
+
+print("\nCantidad de tarjetas por persona:")
+print(tarjetas_por_persona.head())
+
+# Filtro de personas con más de una tarjeta
+personas_con_multiples_tarjetas = tarjetas_por_persona[
+    tarjetas_por_persona['cantidad_tarjetas'] > 1
+]
+
+print("\nPersonas con más de una tarjeta:")
+print(personas_con_multiples_tarjetas)
+
+# Máximo número de tarjetas que tiene una persona
+max_tarjetas = tarjetas_por_persona['cantidad_tarjetas'].max()
+
+print(f"\nMáximo número de tarjetas que tiene una persona: {max_tarjetas}")
 
 print("\n" + "="*60)
 print("COMENZANDO EL EDA")
@@ -48,14 +82,20 @@ print("\n" + "="*60)
 print("\n" + "="*60)
 print("4. RESUMEN ESTADÍSTICO DEL DATASET")
 print("="*60)
-#resumen(data_train)
-#var_claves_num=["amt","velocidad","distancia","zscore","edad","tasa_categoria"]
-#var_claves_cat=["gender","merchant","category","city","job","es_nuevo","is_first_buy"]
-#ESTAS YA NO SE DEBERÍAN USAR, ESTÁ PENDIENTE LA ELIMINACIÓNDE LA LINEA
+resumen(data_train)
 
-#graficar_densidad(data_train,var_claves_num,target="is_fraud")
-#boxplots_con_tabla(data_train, var_claves_num)
+
+#graficar_densidad(data_train,num_columns,target="is_fraud")
+#for num_var in num_columns:
+ #   make_boxplot(data_train,num_var)
+
+#for cat_var in cat_columns:
+ #   make_barplot(data_train,cat_var,top=15) #univariado
+
+#print("\n Matriz de correlación...")
+#make_heat_map(data_train,num_columns)#multivariado
 #graficar_reloj_fraude(data_train)
+graficar_temporalidad_fraude(data_train)
 
 #grafico_tasa_por_variable(data_train, 'category')
 #grafico_tasa_por_variable(data_train, 'es_nuevo')# Analizando Riesgo en Comercios Nuevos
@@ -69,8 +109,6 @@ print("="*60)
 #print("EXPLORACIÓN PROFUNDA")
 #print("="*70)
 
-#print("\n Matriz de correlación...")
-#graficar_correlacion(data_train, var_claves_num)
 
 #print("\nTabla de estadísticas comparativas")
 #tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
@@ -103,15 +141,16 @@ print("="*60)
 #print("="*80)
 #print(tabla_b.to_string(index=False))
 
-for cat_var in cat_columns:
-    make_barplot(data_train,cat_var,top=15) #univariado
 
-#make_heat_map(data_train,num_columns)#multivariado
-#make_scatter_plot(data_train,num_columns)#multivariado
+
+
+#make_scatter_plot(data_train,var_claves_num)#multivariado  #DA PROBLEMAS, LO ASOCIO A LA CANTIDAD DE OBSERVACIONES
+
+#make_stacked_barplots(data_train, cat_columns, top=10)#multivariado #NO APORTA MUCHA INFORMACIÓN DADO EL DESBALANCE
 
 
 #--------------------------------
-#ADICIÓN DE NUEVAS COLUMNAS
+#ADICIÓN DE NUEVAS COLUMNA
 #--------------------------------
 print("\n" + "="*60)
 print("5. CÁLCULO DE VELOCIDAD DE TRANSACCIONES")
