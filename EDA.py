@@ -152,7 +152,7 @@ def graficar_correlacion(df, columnas_num):
         linewidths=0.5
     )
 
-    plt.title("Mapa de Calor: Multicolinealidad de Variables Numéricas")
+    plt.title("Mapa de Calor: Correlación de Variables Numéricas")
     plt.tight_layout()
     plt.show()
 

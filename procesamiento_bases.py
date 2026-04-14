@@ -93,48 +93,6 @@ def zcore_monto(data):
 
     return resultado
 
-if __name__=="__main__":
-    # ===================================================================
-    # PROBAR NUEVAS COLUMNAS
-    # ===================================================================
-    from Subida_data import buscar_y_cargar
-    data_train=buscar_y_cargar("fraudTrain.csv")
-
-    print("1. CÁLCULO DE VELOCIDAD DE TRANSACCIONES")
-    print("="*60)
-    try:
-        velocidad,is_first_buy = calcular_velocidad(data_train.copy())
-        print("Velocidad calculada exitosamente")
-        print("Primeras 10 velocidades:")
-        print(velocidad.head(10))
-        print("\nPrimeras 10 is_first_buy (1 = Primera compra, 0 = Historial):")
-        print(is_first_buy.head(10))
-    except Exception as e:
-        print(f"Error al calcular velocidad: {e}")
-
-    print("\n" + "="*60)
-    print("2. CÁLCULO DE Z-SCORE DE MONTO")
-    print("="*60)
-    try:
-        zscore = zcore_monto(data_train)
-        print("Z-score de monto calculado exitosamente")
-        print("Primeros 10 z-scores:")
-        print(zscore.head(10))
-    except Exception as e:
-        print(f"Error al calcular z-score: {e}")
-
-    print("\n" + "=" * 60)
-    print("3. CÁLCULO DE HAVERSINE")
-    print("=" * 60)
-    try:
-        distancia= haversine(data_train["lat"],data_train["long"],data_train["merch_lat"],data_train["merch_long"])
-        print("Haversine calculada exitosamente")
-        print("Primeras 10 distancias:")
-        print(distancia.head(10))
-    except Exception as e:
-        print(f"Error al calcular haversine: {e}")
-
-
 #POSIBLES NUEVAS VARIABLES PARA NUESTRO ESTUDIO
 def calcular_edad(data): #analizar si ciertos rangos de edad son más vulnerables al fraude
     trans_time = pd.to_datetime(data["trans_date_trans_time"])

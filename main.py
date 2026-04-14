@@ -1,21 +1,28 @@
 #Cargar base de datos para entrenamiento
 import pandas as pd
 import numpy as np
-from scipy import stats
 
-from procesamiento_bases import nuevo_comercio
-from Subida_data import buscar_y_cargar
+#Carga de funciones
+
+from Subida_data import *
+from procesamiento_bases import *
+from EDA import *
+
 data_train=buscar_y_cargar("fraudTrain.csv")
 
-#Verificar presencia de nulos y duplicados
-from procesamiento_bases import ver_nulos
-from procesamiento_bases import ver_duplicados
-from procesamiento_bases import resumen
-from procesamiento_bases import balance_clases
-from procesamiento_bases import calcular_edad, calcular_anomaliaencategoria, nuevo_comercio
+# Crear una lista con el nombre de las variables categóricas
+cat_columns = data_train.select_dtypes(include=['object', 'string']).columns
+
+# Crear una lista con el nombre de las variables numéricas
+num_columns = data_train.select_dtypes(include=['number']).columns
+
+
 # ===================================================================
 # EJECUTAR ANÁLISIS DEL DATASET
 # ===================================================================
+
+print("\n" + "="*60)
+print("COMENZANDO EL EDA")
 
 print("\n" + "="*60)
 print("1. ANÁLISIS DE NULOS")
@@ -28,16 +35,76 @@ print("="*60)
 ver_duplicados(data_train)
 
 print("\n" + "="*60)
-print("4. BALANCE DE CLASES (is_fraud)")
+print("3. BALANCE DE CLASES (is_fraud)")
 print("="*60)
 print(balance_clases(data_train)) #0.58%
+print("\n" + "="*60)
+
+#----------------------------------------------
+#GRÁFICOS
+#----------------------------------------------
+#num_columns, cat_columns=separar_columnas(data_train)
+
+print("\n" + "="*60)
+print("4. RESUMEN ESTADÍSTICO DEL DATASET")
+print("="*60)
+#resumen(data_train)
+var_claves_num=["amt","velocidad","distancia","zscore","edad","tasa_categoria"]
+var_claves_cat=["gender","merchant","category","city","job","es_nuevo","is_first_buy"]
+
+#graficar_densidad(data_train,var_claves_num,target="is_fraud")
+boxplots_con_tabla(data_train, var_claves_num)
+#graficar_reloj_fraude(data_train)
+
+#grafico_tasa_por_variable(data_train, 'category')
+#grafico_tasa_por_variable(data_train, 'es_nuevo')# Analizando Riesgo en Comercios Nuevos
+
+print("Ranking de Categorías más Peligrosas")
+#graficar_riesgo_porcategoria(data_train, "category") #en que categorías hay + fraude?
+
+#grafico_tasa_por_variable(data_train, "gender") #influye el genero en la probabilidad?
+
+print("\n" + "="*70)
+print("EXPLORACIÓN PROFUNDA")
+print("="*70)
+
+print("\n Matriz de correlación...")
+#graficar_correlacion(data_train, var_claves_num)
+
+print("\nTabla de estadísticas comparativas")
+tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
 
 
-#Adición de columnas distancia_km, velocidad_kmh
 
-from procesamiento_bases import haversine
-from procesamiento_bases import calcular_velocidad
-from procesamiento_bases import zcore_monto
+#stats_vel_original = data_train.groupby('is_fraud')['velocidad'].describe(percentiles=[.25, .5, .75])
+
+#  Cálculo de los componentes del Boxplot
+#stats_vel_original['IQR'] = stats_vel_original['75%'] - stats_vel_original['25%']
+
+# Bigote Superior: Donde estadísticamente empiezan los outliers
+#stats_vel_original['Bigote_Superior'] = stats_vel_original['75%'] + (1.5 * stats_vel_original['IQR'])
+
+# Mostrar la tabla
+print("="*65)
+print("TABLA ESTADÍSTICA")
+print("="*65)
+#print(stats_vel_original.T)
+
+tabla_a, tabla_b = generar_tablas_tesis(data_train, var_claves_num)
+
+print("\n" + "="*80)
+print("TABLA A: ESTADÍSTICAS DESCRIPTIVAS POR GRUPO")
+print("="*80)
+print(tabla_a.to_string(index=False))
+
+print("\n" + "="*80)
+print("TABLA B: MÉTRICAS DE COMPARACIÓN Y SEPARACIÓN (FRAUDE VS LEGÍTIMO)")
+print("="*80)
+print(tabla_b.to_string(index=False))
+
+#--------------------------------
+#ADICIÓN DE NUEVAS COLUMNAS
+#--------------------------------
 print("\n" + "="*60)
 print("5. CÁLCULO DE VELOCIDAD DE TRANSACCIONES")
 print("="*60)
@@ -114,71 +181,3 @@ print("\nDISTRIBUCIÓN EN PORCENTAJE (%):")
 print(data_train["es_nuevo"].value_counts(normalize=True) * 100)
 print("="*60)
 
-#----------------------------------------------
-#EDA
-
-from EDA import graficar_densidad, boxplots_con_tabla, graficar_reloj_fraude, graficar_correlacion
-from EDA import grafico_tasa_por_variable, graficar_riesgo_porcategoria, separar_columnas
-from EDA import tabla_estadisticas_fraude, generar_tablas_tesis
-
-
-print("\n" + "="*60)
-print("COMENZANDO EL EDA")
-#num_columns, cat_columns=separar_columnas(data_train)
-
-print("\n" + "="*60)
-print("1. RESUMEN ESTADÍSTICO DEL DATASET")
-print("="*60)
-#resumen(data_train)
-var_claves_num=["amt","velocidad","distancia","zscore","edad","tasa_categoria"]
-var_claves_cat=["gender","merchant","category","city","job","es_nuevo","is_first_buy"]
-
-#graficar_densidad(data_train,var_claves_num,target="is_fraud")
-boxplots_con_tabla(data_train, var_claves_num)
-#graficar_reloj_fraude(data_train)
-
-#grafico_tasa_por_variable(data_train, 'category')
-#grafico_tasa_por_variable(data_train, 'es_nuevo')# Analizando Riesgo en Comercios Nuevos
-
-print("Ranking de Categorías más Peligrosas")
-#graficar_riesgo_porcategoria(data_train, "category") #en que categorías hay + fraude?
-
-#grafico_tasa_por_variable(data_train, "gender") #influye el genero en la probabilidad?
-
-print("\n" + "="*70)
-print("EXPLORACIÓN PROFUNDA")
-print("="*70)
-
-print("\n Matriz de correlación...")
-#graficar_correlacion(data_train, var_claves_num)
-
-print("\nTabla de estadísticas comparativas")
-tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
-
-
-
-#stats_vel_original = data_train.groupby('is_fraud')['velocidad'].describe(percentiles=[.25, .5, .75])
-
-#  Cálculo de los componentes del Boxplot
-#stats_vel_original['IQR'] = stats_vel_original['75%'] - stats_vel_original['25%']
-
-# Bigote Superior: Donde estadísticamente empiezan los outliers
-#stats_vel_original['Bigote_Superior'] = stats_vel_original['75%'] + (1.5 * stats_vel_original['IQR'])
-
-# Mostrar la tabla
-print("="*65)
-print("TABLA ESTADÍSTICA")
-print("="*65)
-#print(stats_vel_original.T)
-
-tabla_a, tabla_b = generar_tablas_tesis(data_train, var_claves_num)
-
-print("\n" + "="*80)
-print("TABLA A: ESTADÍSTICAS DESCRIPTIVAS POR GRUPO")
-print("="*80)
-print(tabla_a.to_string(index=False))
-
-print("\n" + "="*80)
-print("TABLA B: MÉTRICAS DE COMPARACIÓN Y SEPARACIÓN (FRAUDE VS LEGÍTIMO)")
-print("="*80)
-print(tabla_b.to_string(index=False))

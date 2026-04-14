@@ -7,8 +7,5 @@ def buscar_y_cargar(nombre_archivo):
     print("Cargando desde:", ruta_final)
     return pd.read_csv(ruta_final)
 
-##Probando formula
-data_train = buscar_y_cargar("fraudTrain.csv")
-print(data_train.head())  # Descomenta esta línea para ver las primeras filas
 
 
