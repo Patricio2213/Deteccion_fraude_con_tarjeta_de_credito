@@ -315,34 +315,6 @@ def boxplots_con_tabla(df, columnas_num, target="is_fraud"):
         print(stats[columnas_finales].T)
         print("-" * 60)
 
-#Reloj fraude
-def graficar_reloj_fraude(df):
-    print("Generando el Reloj del Criminal...")
-
-    # Aseguramos formato datetime y extraemos la hora
-    df_temp = df.copy()
-    df_temp["hora"] = pd.to_datetime(df_temp["trans_date_trans_time"]).dt.hour
-
-    # Calculamos porcentaje de fraude por hora
-    tasa_fraude_por_hora = df_temp.groupby("hora")["is_fraud"].mean() * 100
-
-    plt.figure(figsize=(10, 5))
-    sns.lineplot(
-        x=tasa_fraude_por_hora.index,
-        y=tasa_fraude_por_hora.values,
-        marker="o",
-        color="darkred",
-        linewidth=2
-    )
-
-    plt.title("Tasa de Fraude según la Hora del Día")
-    plt.xlabel("Hora del Día (0-23)")
-    plt.ylabel("% de Transacciones que son Fraude")
-    plt.xticks(range(0, 24))
-    plt.grid(linestyle='--', alpha=0.7)
-
-    plt.tight_layout()
-    plt.show()
 
 def graficar_temporalidad_fraude(df):
     df_temp = df.copy()

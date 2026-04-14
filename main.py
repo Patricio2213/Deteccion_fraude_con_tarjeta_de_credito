@@ -85,16 +85,16 @@ print("="*60)
 resumen(data_train)
 
 
-#graficar_densidad(data_train,num_columns,target="is_fraud")
-#for num_var in num_columns:
- #   make_boxplot(data_train,num_var)
+graficar_densidad(data_train,num_columns,target="is_fraud")
+for num_var in num_columns:
+    make_boxplot(data_train,num_var)
 
-#for cat_var in cat_columns:
- #   make_barplot(data_train,cat_var,top=15) #univariado
+for cat_var in cat_columns:
+    make_barplot(data_train,cat_var,top=15) #univariado
 
-#print("\n Matriz de correlación...")
-#make_heat_map(data_train,num_columns)#multivariado
-#graficar_reloj_fraude(data_train)
+print("\n Matriz de correlación...")
+make_heat_map(data_train,num_columns)#multivariado
+
 graficar_temporalidad_fraude(data_train)
 
 #grafico_tasa_por_variable(data_train, 'category')
