@@ -43,36 +43,37 @@ print("\n" + "="*60)
 #----------------------------------------------
 #GRÁFICOS
 #----------------------------------------------
-#num_columns, cat_columns=separar_columnas(data_train)
+
 
 print("\n" + "="*60)
 print("4. RESUMEN ESTADÍSTICO DEL DATASET")
 print("="*60)
 #resumen(data_train)
-var_claves_num=["amt","velocidad","distancia","zscore","edad","tasa_categoria"]
-var_claves_cat=["gender","merchant","category","city","job","es_nuevo","is_first_buy"]
+#var_claves_num=["amt","velocidad","distancia","zscore","edad","tasa_categoria"]
+#var_claves_cat=["gender","merchant","category","city","job","es_nuevo","is_first_buy"]
+#ESTAS YA NO SE DEBERÍAN USAR, ESTÁ PENDIENTE LA ELIMINACIÓNDE LA LINEA
 
 #graficar_densidad(data_train,var_claves_num,target="is_fraud")
-boxplots_con_tabla(data_train, var_claves_num)
+#boxplots_con_tabla(data_train, var_claves_num)
 #graficar_reloj_fraude(data_train)
 
 #grafico_tasa_por_variable(data_train, 'category')
 #grafico_tasa_por_variable(data_train, 'es_nuevo')# Analizando Riesgo en Comercios Nuevos
 
-print("Ranking de Categorías más Peligrosas")
+#print("Ranking de Categorías más Peligrosas")
 #graficar_riesgo_porcategoria(data_train, "category") #en que categorías hay + fraude?
 
 #grafico_tasa_por_variable(data_train, "gender") #influye el genero en la probabilidad?
 
-print("\n" + "="*70)
-print("EXPLORACIÓN PROFUNDA")
-print("="*70)
+#print("\n" + "="*70)
+#print("EXPLORACIÓN PROFUNDA")
+#print("="*70)
 
-print("\n Matriz de correlación...")
+#print("\n Matriz de correlación...")
 #graficar_correlacion(data_train, var_claves_num)
 
-print("\nTabla de estadísticas comparativas")
-tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
+#print("\nTabla de estadísticas comparativas")
+#tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
 
 
 
@@ -85,22 +86,29 @@ tabla = tabla_estadisticas_fraude(data_train, var_claves_num)
 #stats_vel_original['Bigote_Superior'] = stats_vel_original['75%'] + (1.5 * stats_vel_original['IQR'])
 
 # Mostrar la tabla
-print("="*65)
-print("TABLA ESTADÍSTICA")
-print("="*65)
+#print("="*65)
+#print("TABLA ESTADÍSTICA")
+#print("="*65)
 #print(stats_vel_original.T)
 
-tabla_a, tabla_b = generar_tablas_tesis(data_train, var_claves_num)
+#tabla_a, tabla_b = generar_tablas_tesis(data_train, var_claves_num)
 
-print("\n" + "="*80)
-print("TABLA A: ESTADÍSTICAS DESCRIPTIVAS POR GRUPO")
-print("="*80)
-print(tabla_a.to_string(index=False))
+#print("\n" + "="*80)
+#print("TABLA A: ESTADÍSTICAS DESCRIPTIVAS POR GRUPO")
+#print("="*80)
+#print(tabla_a.to_string(index=False))
 
-print("\n" + "="*80)
-print("TABLA B: MÉTRICAS DE COMPARACIÓN Y SEPARACIÓN (FRAUDE VS LEGÍTIMO)")
-print("="*80)
-print(tabla_b.to_string(index=False))
+#print("\n" + "="*80)
+#print("TABLA B: MÉTRICAS DE COMPARACIÓN Y SEPARACIÓN (FRAUDE VS LEGÍTIMO)")
+#print("="*80)
+#print(tabla_b.to_string(index=False))
+
+#for cat_var in cat_columns:
+ #   make_barplot(data_train,cat_var) #univariado
+make_barplot(data_train,"gender")
+#make_heat_map(data_train,num_columns)#multivariado
+#make_scatter_plot(data_train,num_columns)#multivariado
+
 
 #--------------------------------
 #ADICIÓN DE NUEVAS COLUMNAS

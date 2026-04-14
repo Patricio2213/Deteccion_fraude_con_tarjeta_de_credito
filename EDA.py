@@ -1,21 +1,4 @@
-#VAR NUMERICAS Y CATEGORICAS
-def separar_columnas(df, target="is_fraud", excluir=None):
 
-    if excluir is None:
-        excluir = []
-
-    # Categóricas
-    cat_columns= [col for col in df.select_dtypes(include=['object', 'string']).columns
-        if col not in [target] + excluir
-    ]
-
-    # Numéricas (excluyendo target y otras), por si necesito separarlas
-    num_columns= [
-        col for col in df.select_dtypes(include=['number']).columns
-        if col not in [target] + excluir
-    ]
-
-    return num_columns, cat_columns
 
 #DENSIDAD
 import matplotlib.pyplot as plt
@@ -23,6 +6,9 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 from scipy import stats
+import itertools
+
+plt.style.use('fivethirtyeight')
 
 def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
 
@@ -57,6 +43,227 @@ def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
         if limite_superior > limite_inferior:
             plt.xlim(limite_inferior, limite_superior)
 
+        plt.tight_layout()
+        plt.show()
+ #EDA PROFESOR
+
+def make_barplot(dataframe, cat_var):
+    # Calcular porcentajes
+    percentages = dataframe[cat_var].value_counts(normalize=True) * 100
+
+    # Tamaño de la figura
+    plt.figure(figsize=(16, 9))
+
+    # Crear el diagrama de barras
+    my_fig = percentages.plot(kind='bar')
+
+    # Añadir porcentajes a las barras
+    for i, valor in enumerate(percentages):
+        my_fig.text(i, valor/2, f"{valor:.2f}%", fontsize=16, va='center', ha='center',
+                    color='white', weight='bold')
+
+    # Añadir títulos a los ejes
+    plt.xlabel(cat_var)
+    plt.ylabel('Percentage (%)')
+
+    # Rotar las leyendas del eje x
+    plt.xticks(rotation=0)
+
+    # Controlar las lineas horizontales y verticales
+    my_fig.grid(axis='x', visible=False)
+    my_fig.grid(axis='y', visible=True)
+
+    # Mostrar la figura
+    plt.tight_layout()
+    plt.show()
+
+def make_boxplot(dataframe, num_var, unit=''):
+    # Tamaño de la figura
+    plt.figure(figsize=(16, 9))
+
+    # Crear el boxplot
+    sns.boxplot(dataframe, x=num_var)
+
+    # Etiquetas de los ejes
+    plt.xlabel(num_var)
+    plt.ylabel('Values')
+
+    # Calcular estadísticas descriptivas
+    mean_val = dataframe[num_var].mean()
+    std_val = dataframe[num_var].std()
+    median_val = dataframe[num_var].median()
+    min_val = dataframe[num_var].min()
+    max_val = dataframe[num_var].max()
+    skew_val = dataframe[num_var].skew()
+
+    # Guardar las estadísticas en una tupla
+    stats_text = (
+        f"Mean: {mean_val:.2f} {unit}\n"
+        f"Median: {median_val:.2f} {unit}\n"
+        f"Std: {std_val:.2f} {unit}\n"
+        f"Min: {min_val:.2f} {unit}\n"
+        f"Max: {max_val:.2f} {unit}\n"
+        f"Skew: {skew_val:.2f}"
+    )
+
+    # Colocar las estadísticas en la figura
+    plt.text(
+        0.95, 0.95, stats_text,
+        transform=plt.gca().transAxes,
+        fontsize=12,
+        verticalalignment='top',
+        horizontalalignment='right',
+        multialignment='right',
+        fontfamily='monospace',
+        bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray')
+    )
+
+    # Mostrar la figura
+    plt.tight_layout()
+    plt.show()
+
+def make_heat_map(dataframe, num_vars):
+    # Definir tamaño de la figura
+    plt.figure(figsize=(16, 9))
+
+    # Calcular la matriz de correlación
+    corr_matrix = dataframe[num_vars].corr()
+
+    # Crear una máscara para esconder mitad de la matriz
+    mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+
+    # Crear el heatmap
+    sns.set_theme(font_scale=1.2)
+    sns.heatmap(corr_matrix, mask=mask, annot=True, cmap='coolwarm', fmt=".2f")
+
+    # Mostrar la figura
+    plt.tight_layout()
+    plt.show()
+
+
+def make_scatter_plot(dataframe, num_vars):
+    # Tamaño de la figura
+    plt.figure(figsize=(16, 9))
+
+    # Generar la matriz de scatter plot
+    g = sns.pairplot(dataframe[num_vars], corner=False, diag_kind='kde')
+
+    # Ajustar las etiquetas del eje y
+    for ax in g.axes.flatten():
+        if ax is not None:
+            ax.yaxis.label.set_rotation(0)
+            ax.yaxis.label.set_ha('right')
+            ax.yaxis.labelpad = 13
+
+    # Ajustar la figura para evitar traslape
+    g.figure.tight_layout()
+    plt.show()
+
+def make_grouped_boxplots(dataframe, num_vars, cat_vars, type_plot='boxplot', unit=''):
+
+    for num_var, cat_var in itertools.product(num_vars, cat_vars):
+        # Tamaño de la figura
+        plt.figure(figsize=(16, 9))
+
+        # Boxplot o Violinplot
+        if type_plot == 'boxplot':
+            ax = sns.boxplot(x=cat_var, y=num_var, data=dataframe)
+        else:
+            ax = sns.violinplot(x=cat_var, y=num_var, data=dataframe, box=None)
+
+        # Etiquetas de los ejes
+        plt.xlabel(cat_var)
+        plt.ylabel(f"{num_var} ({unit})" if unit else num_var)
+
+        # Calcular las estadísticas por grupo
+        grouped_stats = dataframe.groupby(cat_var)[num_var].agg(
+            mean='mean',
+            median='median',
+            std='std',
+            min='min',
+            max='max',
+            skew='skew'
+        )
+
+        # Formatear las estadísticas verticalmente
+        stats_lines = [""]
+        for cat, row in grouped_stats.iterrows():
+            stats_lines.append(f"{cat}:")
+            stats_lines.append(f"  Mean: {row['mean']:.2f} {unit}")
+            stats_lines.append(f"  Median: {row['median']:.2f} {unit}")
+            stats_lines.append(f"  Std: {row['std']:.2f} {unit}")
+            stats_lines.append(f"  Min: {row['min']:.2f} {unit}")
+            stats_lines.append(f"  Max: {row['max']:.2f} {unit}")
+            stats_lines.append(f"  Skew: {row['skew']:.2f}")
+            stats_lines.append("")
+
+        stats_text = "\n".join(stats_lines)
+
+        # Graficar las estadísticas afuera de la figura
+        plt.gcf().subplots_adjust(right=0.7)
+        plt.text(
+            1.01, 1, stats_text,
+            transform=ax.transAxes,
+            fontsize=11,
+            verticalalignment='top',
+            horizontalalignment='left',
+            multialignment='left',
+            fontfamily='monospace',
+            bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray')
+        )
+
+        # Mostrar la figura
+        plt.tight_layout()
+        plt.show()
+
+def make_stacked_barplots(dataframe, cat_vars):
+    # Validar número de variables categóricas
+    if len(cat_vars) < 2:
+        raise ValueError("Se requieren al menos dos variables categóricas")
+
+    # Generar todas las posibles combinaciones de variables
+    for var1, var2 in itertools.permutations(cat_vars, 2):
+        # Tabla de contingencia normalizada por filas
+        crosstab = pd.crosstab(dataframe[var1], dataframe[var2], normalize='index')*100
+
+        # Tamaño de la figura
+        plt.figure(figsize=(16, 9))
+
+        # Crear el diagrama de barras
+        ax = crosstab.plot(kind='bar', stacked=True, figsize=(16, 9))
+
+        # Etiquetas de los ejes
+        plt.ylabel('Percentage (%)')
+        plt.xlabel(var1)
+
+        # Añadir el texto dentro de las barras
+        for i, row in enumerate(crosstab.values):
+            cumulative = 0
+            for j, value in enumerate(row):
+                if value > 0:
+                    ax.text(
+                        i,
+                        cumulative + value/2,
+                        f"{value:.2f}%",
+                        ha='center',
+                        va='center',
+                        color='white',
+                        fontweight='bold',
+                        fontsize=9
+                    )
+                cumulative += value
+
+        # Leyenda
+        plt.legend(title=var2, bbox_to_anchor=(1.05, 1), loc='upper left')
+
+        # Control de la grilla
+        plt.grid(axis='x', visible=False)
+        plt.grid(axis='y', visible=True)
+
+        # Rotación de las etiquetas
+        plt.xticks(rotation=0)
+
+        # Mostrar la figura
         plt.tight_layout()
         plt.show()
 
