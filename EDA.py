@@ -59,7 +59,7 @@ def make_barplot(dataframe, cat_var,top):
 
     # Añadir porcentajes a las barras
     for i, valor in enumerate(percentages):
-        my_fig.text(i, valor/2, f"{valor:.2f}%", fontsize=16, va='center', ha='center',
+        my_fig.text(i, valor + 0.2, f"{valor:.2f}%", fontsize=16, va='center', ha='center',
                     color='white', weight='bold')
 
     # Añadir títulos a los ejes
@@ -67,7 +67,8 @@ def make_barplot(dataframe, cat_var,top):
     plt.ylabel('Percentage (%)')
 
     # Rotar las leyendas del eje x
-    plt.xticks(rotation=0)
+    plt.xticks(rotation=45,ha="right")
+    plt.ylim(0, percentages.max() + 5)
 
     # Controlar las lineas horizontales y verticales
     my_fig.grid(axis='x', visible=False)
