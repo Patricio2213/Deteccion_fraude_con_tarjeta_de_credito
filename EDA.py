@@ -60,7 +60,7 @@ def make_barplot(dataframe, cat_var,top):
     # Añadir porcentajes a las barras
     for i, valor in enumerate(percentages):
         my_fig.text(i, valor + 0.2, f"{valor:.2f}%", fontsize=16, va='center', ha='center',
-                    color='white', weight='bold')
+                    color='black', weight='bold')
 
     # Añadir títulos a los ejes
     plt.xlabel(cat_var)
