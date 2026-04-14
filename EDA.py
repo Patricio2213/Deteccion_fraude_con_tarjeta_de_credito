@@ -47,9 +47,9 @@ def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
         plt.show()
  #EDA PROFESOR
 
-def make_barplot(dataframe, cat_var):
+def make_barplot(dataframe, cat_var,top):
     # Calcular porcentajes
-    percentages = dataframe[cat_var].value_counts(normalize=True) * 100
+    percentages = dataframe[cat_var].value_counts(normalize=True).head(top) * 100
 
     # Tamaño de la figura
     plt.figure(figsize=(16, 9))

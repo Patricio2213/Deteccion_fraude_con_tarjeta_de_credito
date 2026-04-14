@@ -104,8 +104,8 @@ print("="*60)
 #print(tabla_b.to_string(index=False))
 
 #for cat_var in cat_columns:
- #   make_barplot(data_train,cat_var) #univariado
-make_barplot(data_train,"gender")
+make_barplot(data_train,cat_var,top=15) #univariado
+
 #make_heat_map(data_train,num_columns)#multivariado
 #make_scatter_plot(data_train,num_columns)#multivariado
 
