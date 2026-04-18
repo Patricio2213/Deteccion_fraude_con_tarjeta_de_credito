@@ -162,6 +162,17 @@ except Exception as e:
     print(f"Error al calcular z-score: {e}")
 
 print("\n" + "="*60)
+print("7.1 CÁLCULO DE LOGARITMO DE MONTO")
+print("="*60)
+try:
+    data_train["amt_log"] = np.log1p(data_train["amt"])
+    print("Logaritmo de monto calculado exitosamente")
+    print("Primeros 10 valores de amt_log:")
+    print(data_train["amt_log"].head(10))
+except Exception as e:
+    print(f"Error al calcular amt_log: {e}")
+
+print("\n" + "="*60)
 print("8. Cálculo de EDAD del cliente")
 print("="*60)
 try:
@@ -201,7 +212,27 @@ print("\nDISTRIBUCIÓN EN PORCENTAJE (%):")
 print(data_train["es_nuevo"].value_counts(normalize=True) * 100)
 print("="*60)
 
+print("\n" + "="*60)
+print("CÁLCULO DE LOGARITMO DE CITY_POP")
+print("="*60)
+try:
+    data_train["city_pop_log"] = np.log1p(data_train["city_pop"])
+    print("Logaritmo de city_pop calculado exitosamente")
+    print("Primeros 10 valores:")
+    print(data_train["city_pop_log"].head(10))
+except Exception as e:
+    print(f"Error al calcular city_pop_log: {e}")
 
+print("\n" + "="*60)
+print("CÁLCULO DE LOGARITMO DE VELOCIDAD")
+print("="*60)
+try:
+    data_train["velocidad_log"] = np.log1p(data_train["velocidad"])
+    print("Logaritmo de velocidad calculado exitosamente")
+    print("Primeros 10 valores:")
+    print(data_train["velocidad_log"].head(10))
+except Exception as e:
+    print(f"Error al calcular velocidad_log: {e}")
 
 
 #TABLAS SIN UNSO ACTUALMENTE PQ NO SE HAN AÑADIDO LAS NUEVAS
@@ -230,3 +261,180 @@ print("="*60)
 #print("TABLA B: MÉTRICAS DE COMPARACIÓN Y SEPARACIÓN (FRAUDE VS LEGÍTIMO)")
 #print("="*80)
 #print(tabla_b.to_string(index=False))
+
+
+# Veamos las categorias de comercio
+
+# Categorías distintas ordenadas alfabéticamente
+categorias_unicas = sorted(data_train["category"].dropna().unique())
+
+print("Listado completo de categorías:")
+for cat in categorias_unicas:
+    print(cat)
+
+print("\nCantidad total de categorías distintas:", len(categorias_unicas))
+
+# VISUALIZAR UBICACIÓN DE COMERCIOS diferenciando net del resto
+
+# Tomo una muestra para no saturar el gráfico
+df_plot = data_train.sample(n=5000, random_state=42).copy()
+
+# Definir categorías online
+categorias_net = ["grocery_net", "misc_net", "shopping_net"]
+
+df_plot["tipo"] = np.where(
+    df_plot["category"].isin(categorias_net),
+    "net",
+    "resto"
+)
+
+# Gráfico
+plt.figure(figsize=(10, 6))
+
+sns.scatterplot(
+    data=df_plot,
+    x="merch_long",
+    y="merch_lat",
+    hue="tipo",
+    alpha=0.5
+)
+
+plt.title("Ubicación de comercios (net vs resto)")
+plt.xlabel("Longitud")
+plt.ylabel("Latitud")
+plt.legend()
+plt.grid(alpha=0.3)
+
+plt.show()
+
+
+# Creo una variable: ES ONLINE (1) VS FÍSICO (0)
+
+categorias_net = ["grocery_net", "misc_net", "shopping_net"]
+
+data_train["es_online"] = data_train["category"].isin(categorias_net).astype(int)
+
+print("Conteo de compras online vs físicas:")
+print(data_train["es_online"].value_counts())
+
+print("\nPorcentaje:")
+print(data_train["es_online"].value_counts(normalize=True) * 100)
+
+grafico_tasa_por_variable(data_train, "es_online")
+
+#Veamos que variables podrían necesitar log
+
+# DIAGNÓSTICO DE VARIABLES NUMÉRICAS:
+# VER SI CONVIENE USAR LOG, ZSCORE O DEJARLA IGUAL
+
+def diagnostico_transformaciones(df, columnas_numericas):
+    resultados = []
+
+    for col in columnas_numericas:
+        serie = df[col].dropna()
+
+        # Si la variable no tiene datos suficientes, la marco para revisión
+        if len(serie) < 5:
+            resultados.append({
+                "Variable": col,
+                "Min": np.nan,
+                "Q1": np.nan,
+                "Mediana": np.nan,
+                "Q3": np.nan,
+                "Max": np.nan,
+                "Skew": np.nan,
+                "%_Ceros": np.nan,
+                "%_Negativos": np.nan,
+                "%_Outliers_IQR": np.nan,
+                "Sugerencia": "revisar",
+                "Motivo": "muy pocos datos"
+            })
+            continue
+
+        # Estadísticos básicos
+        q1 = serie.quantile(0.25)
+        mediana = serie.median()
+        q3 = serie.quantile(0.75)
+        iqr = q3 - q1
+        min_val = serie.min()
+        max_val = serie.max()
+        skew_val = serie.skew()
+
+        # Porcentaje de ceros y negativos
+        pct_ceros = (serie == 0).mean() * 100
+        pct_negativos = (serie < 0).mean() * 100
+
+        # Outliers usando criterio IQR
+        lim_inf = q1 - 1.5 * iqr
+        lim_sup = q3 + 1.5 * iqr
+        pct_outliers = ((serie < lim_inf) | (serie > lim_sup)).mean() * 100
+
+
+        # REGLAS METODOLÓGICAS PARA SUGERIR TRANSFORMACIÓN
+
+
+        # Caso 1: si tiene negativos, no conviene aplicar log directo
+        if pct_negativos > 0:
+            sugerencia = "zscore o nada"
+            motivo = "tiene valores negativos, log no aplica directo"
+
+        # Caso 2: si está muy sesgada a la derecha y no tiene negativos
+        elif skew_val > 2:
+            sugerencia = "log"
+            motivo = "alta asimetría positiva"
+
+        # Caso 3: si está moderadamente sesgada y con bastantes outliers
+        elif skew_val > 1 and pct_outliers > 5:
+            sugerencia = "log"
+            motivo = "sesgo positivo y presencia de outliers"
+
+        # Caso 4: si no está tan sesgada, pero tiene escala rara o outliers
+        elif abs(skew_val) <= 1 and pct_outliers > 5:
+            sugerencia = "zscore"
+            motivo = "distribución razonable, pero con outliers/escala"
+
+        # Caso 5: distribución bastante estable
+        else:
+            sugerencia = "nada o zscore"
+            motivo = "distribución relativamente estable"
+
+        resultados.append({
+            "Variable": col,
+            "Min": round(min_val, 3),
+            "Q1": round(q1, 3),
+            "Mediana": round(mediana, 3),
+            "Q3": round(q3, 3),
+            "Max": round(max_val, 3),
+            "Skew": round(skew_val, 3),
+            "%_Ceros": round(pct_ceros, 2),
+            "%_Negativos": round(pct_negativos, 2),
+            "%_Outliers_IQR": round(pct_outliers, 2),
+            "Sugerencia": sugerencia,
+            "Motivo": motivo
+        })
+
+    tabla_diag = pd.DataFrame(resultados).sort_values(
+        by=["Sugerencia", "Skew"],
+        ascending=[True, False]
+    )
+
+    return tabla_diag
+
+
+
+# EJECUCIÓN DEL DIAGNÓSTICO (veamos qué columnas podrían necesitar log o algun procesamiento extra)
+# EXCLUYO LA VARIABLE OBJETIVO Y OTRAS QUE NO QUIERO EVALUAR
+
+
+columnas_revisar = [
+    col for col in data_train.select_dtypes(include=["number"]).columns
+    if col not in ["is_fraud"]
+]
+
+tabla_diagnostico = diagnostico_transformaciones(data_train, columnas_revisar)
+
+print("\n" + "=" * 120)
+print("DIAGNÓSTICO DE TRANSFORMACIONES")
+print("=" * 120)
+print(tabla_diagnostico.to_string(index=False))
+

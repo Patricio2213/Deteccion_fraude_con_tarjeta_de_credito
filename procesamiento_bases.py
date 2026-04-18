@@ -75,8 +75,6 @@ def calcular_velocidad(data):
 
     velocidad[velocidad < 0] = np.nan  # por seguridad, se mantiene pq no pueden ser menores de 0
 
-    # 8. Reemplazar NaN por -1, esto indica que para primeras transacciones la velocidad será -1
-    velocidad = velocidad.fillna(-1)
 
     return velocidad, is_first_buy
 
