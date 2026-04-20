@@ -514,4 +514,35 @@ def generar_tablas_tesis(df, var_numericas, target="is_fraud"):
     return pd.DataFrame(res_descriptivo), pd.DataFrame(res_comparativo)
 
 
+# ==========================================
+#  FUNCIÓN PARA EL BOXPLOT NORMAL
+# ==========================================
+def graficar_boxplot_normal(df, var_numerica, target="is_fraud"):
 
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(data=df, x=target, y=var_numerica)
+
+    plt.title(f'Análisis de Extremos: {var_numerica} por Clase (Con Outliers)', fontweight='bold')
+    plt.xlabel(f'{target} (0 = No, 1 = Sí)', fontweight='bold')
+    plt.ylabel(var_numerica, fontweight='bold')
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plt.show()
+
+
+# ==========================================
+#  FUNCIÓN PARA EL BOXPLOT CON ZOOM
+# ==========================================
+def graficar_boxplot_zoom(df, var_numerica, target="is_fraud"):
+
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(data=df, x=target, y=var_numerica, showfliers=False)
+
+    plt.title(
+        f'Zoom del Análisis de Extremos: {var_numerica} por Clase\n(Excluyendo Outliers para visualizar Mediana y Cuartiles)',
+        fontweight='bold')
+    plt.xlabel(f'{target} (0 = No, 1 = Sí)', fontweight='bold')
+    plt.ylabel(var_numerica, fontweight='bold')
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plt.show()

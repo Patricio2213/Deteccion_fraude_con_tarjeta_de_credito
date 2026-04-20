@@ -1,7 +1,3 @@
-#Cargar base de datos para entrenamiento
-import pandas as pd
-import numpy as np
-
 #Carga de funciones
 
 from Subida_data import *
@@ -10,12 +6,13 @@ from EDA import *
 from models import *
 
 data_train=buscar_y_cargar("fraudTrain.csv")
+data_test=buscar_y_cargar("fraudTest.csv")
 
 # Crear una lista con el nombre de las variables categóricas
 cat_columns = data_train.select_dtypes(include=['object', 'string']).columns
 
 
-# Definir las que NO queremos (basado en tu matriz de correlación)
+# Definir las que NO queremos considerando id y variables que no tenga sentido analizar
 cols_a_eliminar = ['Unnamed: 0', 'cc_num', 'unix_time',"is_fraud"]
 
 # Creamos la lista de numéricas excluyendo las de arriba
@@ -60,6 +57,30 @@ max_tarjetas = tarjetas_por_persona['cantidad_tarjetas'].max()
 
 print(f"\nMáximo número de tarjetas que tiene una persona: {max_tarjetas}")
 
+
+#-------------------------------------------------------
+#  Calcular el mínimo y el máximo de las fechas
+#-------------------------------------------------------
+fecha_min_test = data_test["trans_date_trans_time"].min()
+fecha_max_test = data_test["trans_date_trans_time"].max()
+
+print("Periodo de data_train")
+fecha_min_train = data_train["trans_date_trans_time"].min()
+fecha_max_train = data_train["trans_date_trans_time"].max()
+
+print("="*40)
+print("RANGO TEMPORAL DE DATA_TEST")
+print("="*40)
+print(f"Primera transacción (Mín): {fecha_min_test}")
+print(f"Última transacción (Máx):  {fecha_max_test}")
+
+print("="*40)
+print("RANGO TEMPORAL DE DATA_TRAIN")
+print("="*40)
+print(f"Primera transacción (Mín): {fecha_min_train}")
+print(f"Última transacción (Máx):  {fecha_max_train}")
+
+
 print("\n" + "="*60)
 print("COMENZANDO EL EDA")
 
@@ -74,9 +95,14 @@ print("="*60)
 ver_duplicados(data_train)
 
 print("\n" + "="*60)
-print("3. BALANCE DE CLASES (is_fraud)")
+print("3. BALANCE DE CLASES DATA_TRAIN(is_fraud)")
 print("="*60)
 print(balance_clases(data_train)) #0.58%
+print("\n" + "="*60)
+print("\n" + "="*60)
+print("BALANCE DE CLASES DATA_TEST(is_fraud)")
+print("="*60)
+print(balance_clases(data_test))
 print("\n" + "="*60)
 
 #----------------------------------------------
@@ -93,12 +119,14 @@ resumen(data_train)
 #graficar_densidad(data_train,num_columns,target="is_fraud")
 #for num_var in num_columns:
  #   make_boxplot(data_train,num_var)
+#for num_var in num_columns:
+ #   graficar_boxplot_normal(data_train, num_var, target="is_fraud")
 
 #for cat_var in cat_columns:
  #   make_barplot(data_train,cat_var,top=15) #univariado
 
 #print("\n Matriz de correlación...")
-make_heat_map(data_train,num_columns)#multivariado
+#make_heat_map(data_train,num_columns)#multivariado
 
 #graficar_temporalidad_fraude(data_train)
 #fecha_min = data_train['trans_date_trans_time'].min()
