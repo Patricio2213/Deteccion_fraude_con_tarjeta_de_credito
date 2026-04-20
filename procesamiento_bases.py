@@ -2,6 +2,8 @@
 
 import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
 
 #Verificar presencia de nulos
@@ -115,3 +117,19 @@ def nuevo_comercio(data, meses_calentamiento=3): #estudiar si el fraude suele oc
     es_nuevo.loc[data["trans_date_trans_time"] < fecha_limite] = -1 #periodo calentamiento 3 meses (-1) si es 1ra vez
     return es_nuevo #será binario 1/0 indicando si es primera vez o no.
 
+#Procesador para los modelos
+def get_preprocessor():
+    # 1. Definir columnas que usaremos de cada tipo
+    numeric_features = ['amt', 'city_pop']
+    categorical_features = ['category', 'state']
+
+    # 2. Transformador
+    preprocessor = ColumnTransformer(
+        transformers=[
+            # Estandarizar variables numéricas
+            ('num', StandardScaler(), numeric_features),
+            # Convertir categóricas a dummies (ignora categorías nuevas en producción)
+            ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+        ])
+
+    return preprocessor

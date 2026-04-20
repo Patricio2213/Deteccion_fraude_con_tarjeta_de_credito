@@ -7,6 +7,7 @@ import numpy as np
 from Subida_data import *
 from procesamiento_bases import *
 from EDA import *
+from models import *
 
 data_train=buscar_y_cargar("fraudTrain.csv")
 
@@ -97,10 +98,14 @@ resumen(data_train)
  #   make_barplot(data_train,cat_var,top=15) #univariado
 
 #print("\n Matriz de correlación...")
-#make_heat_map(data_train,num_columns)#multivariado
+make_heat_map(data_train,num_columns)#multivariado
 
 #graficar_temporalidad_fraude(data_train)
+#fecha_min = data_train['trans_date_trans_time'].min()
+#fecha_max = data_train['trans_date_trans_time'].max()
 
+#print(f"Los datos comienzan el: {fecha_min}")
+#print(f"Los datos terminan el: {fecha_max}")
 #grafico_tasa_por_variable(data_train, 'category')
 #grafico_tasa_por_variable(data_train, 'es_nuevo')# Analizando Riesgo en Comercios Nuevos
 
@@ -238,7 +243,7 @@ except Exception as e:
 #TABLAS SIN UNSO ACTUALMENTE PQ NO SE HAN AÑADIDO LAS NUEVAS
 #stats_vel_original = data_train.groupby('is_fraud')['velocidad'].describe(percentiles=[.25, .5, .75])
 
- # Cálculo de los componentes del Boxplot
+#  Cálculo de los componentes del Boxplot
 #stats_vel_original['IQR'] = stats_vel_original['75%'] - stats_vel_original['25%']
 
 # Bigote Superior: Donde estadísticamente empiezan los outliers
@@ -250,7 +255,7 @@ except Exception as e:
 #print("="*65)
 #print(stats_vel_original.T)
 
-#tabla_a, tabla_b = generar_tablas_tesis(data_train, var_claves_num)
+#tabla_a, tabla_b = generar_tablas_tesis(data_train, num_columns)
 
 #print("\n" + "="*80)
 #print("TABLA A: ESTADÍSTICAS DESCRIPTIVAS POR GRUPO")
@@ -266,46 +271,46 @@ except Exception as e:
 # Veamos las categorias de comercio
 
 # Categorías distintas ordenadas alfabéticamente
-categorias_unicas = sorted(data_train["category"].dropna().unique())
+#categorias_unicas = sorted(data_train["category"].dropna().unique())
 
-print("Listado completo de categorías:")
-for cat in categorias_unicas:
-    print(cat)
+#print("Listado completo de categorías:")
+#for cat in categorias_unicas:
+ #   print(cat)
 
-print("\nCantidad total de categorías distintas:", len(categorias_unicas))
+#print("\nCantidad total de categorías distintas:", len(categorias_unicas))
 
 # VISUALIZAR UBICACIÓN DE COMERCIOS diferenciando net del resto
 
 # Tomo una muestra para no saturar el gráfico
-df_plot = data_train.sample(n=5000, random_state=42).copy()
+#df_plot = data_train.sample(n=1000000, random_state=50).copy()
 
 # Definir categorías online
-categorias_net = ["grocery_net", "misc_net", "shopping_net"]
+#categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 
-df_plot["tipo"] = np.where(
-    df_plot["category"].isin(categorias_net),
-    "net",
-    "resto"
-)
+#data_train["tipo"] = np.where(
+ #   data_train["category"].isin(categorias_net),
+  #  "net",
+   # "resto"
+#)
 
 # Gráfico
-plt.figure(figsize=(10, 6))
+#plt.figure(figsize=(10, 6))
 
-sns.scatterplot(
-    data=df_plot,
-    x="merch_long",
-    y="merch_lat",
-    hue="tipo",
-    alpha=0.5
-)
+#sns.scatterplot(
+ #   data=data_train,
+  #  x="merch_long",
+   # y="merch_lat",
+    #hue="tipo",
+    #alpha=0.5
+#)
 
-plt.title("Ubicación de comercios (net vs resto)")
-plt.xlabel("Longitud")
-plt.ylabel("Latitud")
-plt.legend()
-plt.grid(alpha=0.3)
+#plt.title("Ubicación de comercios (net vs resto)")
+#plt.xlabel("Longitud")
+#plt.ylabel("Latitud")
+#plt.legend()
+#plt.grid(alpha=0.3)
 
-plt.show()
+#plt.show()
 
 
 # Creo una variable: ES ONLINE (1) VS FÍSICO (0)
@@ -327,98 +332,98 @@ grafico_tasa_por_variable(data_train, "es_online")
 # DIAGNÓSTICO DE VARIABLES NUMÉRICAS:
 # VER SI CONVIENE USAR LOG, ZSCORE O DEJARLA IGUAL
 
-def diagnostico_transformaciones(df, columnas_numericas):
-    resultados = []
+#def diagnostico_transformaciones(df, columnas_numericas):
+ #   resultados = []
 
-    for col in columnas_numericas:
-        serie = df[col].dropna()
+  #  for col in columnas_numericas:
+   #     serie = df[col].dropna()
 
         # Si la variable no tiene datos suficientes, la marco para revisión
-        if len(serie) < 5:
-            resultados.append({
-                "Variable": col,
-                "Min": np.nan,
-                "Q1": np.nan,
-                "Mediana": np.nan,
-                "Q3": np.nan,
-                "Max": np.nan,
-                "Skew": np.nan,
-                "%_Ceros": np.nan,
-                "%_Negativos": np.nan,
-                "%_Outliers_IQR": np.nan,
-                "Sugerencia": "revisar",
-                "Motivo": "muy pocos datos"
-            })
-            continue
+    #    if len(serie) < 5:
+     #       resultados.append({
+      #          "Variable": col,
+       #         "Min": np.nan,
+        #        "Q1": np.nan,
+         #       "Mediana": np.nan,
+          #      "Q3": np.nan,
+           #     "Max": np.nan,
+            #    "Skew": np.nan,
+             #   "%_Ceros": np.nan,
+              #  "%_Negativos": np.nan,
+               # "%_Outliers_IQR": np.nan,
+                #"Sugerencia": "revisar",
+                #"Motivo": "muy pocos datos"
+            #})
+            #continue
 
         # Estadísticos básicos
-        q1 = serie.quantile(0.25)
-        mediana = serie.median()
-        q3 = serie.quantile(0.75)
-        iqr = q3 - q1
-        min_val = serie.min()
-        max_val = serie.max()
-        skew_val = serie.skew()
+        #q1 = serie.quantile(0.25)
+        #mediana = serie.median()
+        #q3 = serie.quantile(0.75)
+        #iqr = q3 - q1
+        #min_val = serie.min()
+        #max_val = serie.max()
+        #skew_val = serie.skew()
 
         # Porcentaje de ceros y negativos
-        pct_ceros = (serie == 0).mean() * 100
-        pct_negativos = (serie < 0).mean() * 100
+        #pct_ceros = (serie == 0).mean() * 100
+        #pct_negativos = (serie < 0).mean() * 100
 
         # Outliers usando criterio IQR
-        lim_inf = q1 - 1.5 * iqr
-        lim_sup = q3 + 1.5 * iqr
-        pct_outliers = ((serie < lim_inf) | (serie > lim_sup)).mean() * 100
+        #lim_inf = q1 - 1.5 * iqr
+        #lim_sup = q3 + 1.5 * iqr
+        #pct_outliers = ((serie < lim_inf) | (serie > lim_sup)).mean() * 100
 
 
         # REGLAS METODOLÓGICAS PARA SUGERIR TRANSFORMACIÓN
 
 
         # Caso 1: si tiene negativos, no conviene aplicar log directo
-        if pct_negativos > 0:
-            sugerencia = "zscore o nada"
-            motivo = "tiene valores negativos, log no aplica directo"
+        #if pct_negativos > 0:
+         #   sugerencia = "zscore o nada"
+          #  motivo = "tiene valores negativos, log no aplica directo"
 
         # Caso 2: si está muy sesgada a la derecha y no tiene negativos
-        elif skew_val > 2:
-            sugerencia = "log"
-            motivo = "alta asimetría positiva"
+        #elif skew_val > 2:
+         #   sugerencia = "log"
+          #  motivo = "alta asimetría positiva"
 
         # Caso 3: si está moderadamente sesgada y con bastantes outliers
-        elif skew_val > 1 and pct_outliers > 5:
-            sugerencia = "log"
-            motivo = "sesgo positivo y presencia de outliers"
+        #elif skew_val > 1 and pct_outliers > 5:
+         #   sugerencia = "log"
+          #  motivo = "sesgo positivo y presencia de outliers"
 
         # Caso 4: si no está tan sesgada, pero tiene escala rara o outliers
-        elif abs(skew_val) <= 1 and pct_outliers > 5:
-            sugerencia = "zscore"
-            motivo = "distribución razonable, pero con outliers/escala"
+        #elif abs(skew_val) <= 1 and pct_outliers > 5:
+         #   sugerencia = "zscore"
+          #  motivo = "distribución razonable, pero con outliers/escala"
 
         # Caso 5: distribución bastante estable
-        else:
-            sugerencia = "nada o zscore"
-            motivo = "distribución relativamente estable"
+        #else:
+         #   sugerencia = "nada o zscore"
+          #  motivo = "distribución relativamente estable"
 
-        resultados.append({
-            "Variable": col,
-            "Min": round(min_val, 3),
-            "Q1": round(q1, 3),
-            "Mediana": round(mediana, 3),
-            "Q3": round(q3, 3),
-            "Max": round(max_val, 3),
-            "Skew": round(skew_val, 3),
-            "%_Ceros": round(pct_ceros, 2),
-            "%_Negativos": round(pct_negativos, 2),
-            "%_Outliers_IQR": round(pct_outliers, 2),
-            "Sugerencia": sugerencia,
-            "Motivo": motivo
-        })
+        #resultados.append({
+         #   "Variable": col,
+          #  "Min": round(min_val, 3),
+           # "Q1": round(q1, 3),
+            #"Mediana": round(mediana, 3),
+            #"Q3": round(q3, 3),
+            #"Max": round(max_val, 3),
+            #"Skew": round(skew_val, 3),
+            #"%_Ceros": round(pct_ceros, 2),
+            #"%_Negativos": round(pct_negativos, 2),
+            #"%_Outliers_IQR": round(pct_outliers, 2),
+            #"Sugerencia": sugerencia,
+            #"Motivo": motivo
+        #})
 
-    tabla_diag = pd.DataFrame(resultados).sort_values(
-        by=["Sugerencia", "Skew"],
-        ascending=[True, False]
-    )
+    #tabla_diag = pd.DataFrame(resultados).sort_values(
+     #   by=["Sugerencia", "Skew"],
+      #  ascending=[True, False]
+    #)
 
-    return tabla_diag
+    #return tabla_diag
 
 
 
@@ -426,15 +431,17 @@ def diagnostico_transformaciones(df, columnas_numericas):
 # EXCLUYO LA VARIABLE OBJETIVO Y OTRAS QUE NO QUIERO EVALUAR
 
 
-columnas_revisar = [
-    col for col in data_train.select_dtypes(include=["number"]).columns
-    if col not in ["is_fraud"]
-]
+#columnas_revisar = [
+ #   col for col in data_train.select_dtypes(include=["number"]).columns
+  #  if col not in ["is_fraud"]
+#]
 
-tabla_diagnostico = diagnostico_transformaciones(data_train, columnas_revisar)
+#tabla_diagnostico = diagnostico_transformaciones(data_train, columnas_revisar)
 
-print("\n" + "=" * 120)
-print("DIAGNÓSTICO DE TRANSFORMACIONES")
-print("=" * 120)
-print(tabla_diagnostico.to_string(index=False))
+#print("\n" + "=" * 120)
+#print("DIAGNÓSTICO DE TRANSFORMACIONES")
+#print("=" * 120)
+#print(tabla_diagnostico.to_string(index=False))
+
+#MODELOS
 

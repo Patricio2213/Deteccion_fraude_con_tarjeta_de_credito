@@ -43,6 +43,8 @@ def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
         if limite_superior > limite_inferior:
             plt.xlim(limite_inferior, limite_superior)
 
+        sns.set_style("whitegrid")
+
             # Guardar el gráfico con el nombre de la columna
         plt.savefig(f"densidad_{col}.pdf", bbox_inches='tight', dpi=300)
         plt.tight_layout()
@@ -75,6 +77,7 @@ def make_barplot(dataframe, cat_var,top):
     # Controlar las lineas horizontales y verticales
     my_fig.grid(axis='x', visible=False)
     my_fig.grid(axis='y', visible=True)
+    sns.set_style("whitegrid")
     # Guardar el gráfico usando el nombre de la variable analizada
     plt.savefig(f"barplot_{cat_var}.pdf", bbox_inches='tight', dpi=300)
     # Mostrar la figura
@@ -121,6 +124,7 @@ def make_boxplot(dataframe, num_var, unit=''):
         fontfamily='monospace',
         bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray')
     )
+    sns.set_style("whitegrid")
     # Guardar el gráfico usando el nombre de la variable analizada
     plt.savefig(f"boxplot_{num_var}.pdf", bbox_inches='tight', dpi=300)
     # Mostrar la figura
@@ -140,7 +144,9 @@ def make_heat_map(dataframe, num_vars):
     # Crear el heatmap
     sns.set_theme(font_scale=1.2)
     sns.heatmap(corr_matrix, mask=mask, annot=True, cmap='coolwarm', fmt=".2f")
+    sns.set_style("whitegrid")
     plt.savefig("coor_matrix", bbox_inches='tight')
+
     # Mostrar la figura
     plt.tight_layout()
     plt.show()
@@ -162,6 +168,7 @@ def make_scatter_plot(dataframe, num_vars):
 
     # Ajustar la figura para evitar traslape
     g.figure.tight_layout()
+    sns.set_style("whitegrid")
     plt.show()
 
 def make_grouped_boxplots(dataframe, num_vars, cat_vars, type_plot='boxplot', unit=''):
@@ -216,6 +223,7 @@ def make_grouped_boxplots(dataframe, num_vars, cat_vars, type_plot='boxplot', un
             fontfamily='monospace',
             bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray')
         )
+        sns.set_style("whitegrid")
 
         # Mostrar la figura
         plt.tight_layout()
@@ -267,6 +275,7 @@ def make_stacked_barplots(dataframe, cat_vars, top=10):
         plt.legend(title=target, bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.grid(axis='y', visible=True, alpha=0.3)
         plt.xticks(rotation=45, ha='right')
+        sns.set_style("whitegrid")
         plt.tight_layout()
         plt.show()
 
@@ -312,6 +321,7 @@ def boxplots_con_tabla(df, columnas_num, target="is_fraud"):
         # Transponemos (.T) para que sea más fácil de leer
         columnas_finales = ['count', 'min', '25%', '50%', '75%', 'max', 'IQR', 'Bigote_Inferior', 'Bigote_Superior',
                             'Cant_Outliers']
+        sns.set_style("whitegrid")
         print(stats[columnas_finales].T)
         print("-" * 60)
 
@@ -334,6 +344,7 @@ def graficar_temporalidad_fraude(df):
     plt.title("Evolución Anual: ¿Está aumentando el fraude año a año?", fontsize=14)
     plt.ylabel("% de Fraude")
     plt.savefig("temp_1_anual.pdf", bbox_inches='tight')
+    sns.set_style("whitegrid")
     plt.tight_layout()
     plt.show()
 
@@ -347,6 +358,7 @@ def graficar_temporalidad_fraude(df):
     plt.ylabel("% de Fraude")
     plt.grid(alpha=0.3)
     plt.savefig("temp_2_mensual.pdf", bbox_inches='tight')
+    sns.set_style("whitegrid")
     plt.tight_layout()
     plt.show()
 
@@ -363,8 +375,27 @@ def graficar_temporalidad_fraude(df):
     plt.xticks(range(0, 24))
     plt.legend(title="Año")
     plt.savefig("temp_3_comparativo.pdf", bbox_inches='tight')
+    sns.set_style("whitegrid")
     plt.tight_layout()
     plt.show()
+    # --- 4. COMPARATIVA CRÍTICA: 2019 vs 2020 ---
+    plt.figure(figsize=(12, 6))
+    # Agrupamos por año y mes
+    tasa_mensual_año = df_temp.groupby(["año", "mes"])["is_fraud"].mean().reset_index()
+    tasa_mensual_año["is_fraud"] *= 100
+
+    sns.lineplot(data=tasa_mensual_año, x="mes", y="is_fraud", hue="año",
+                 marker="o", palette=["#3498db", "#e74c3c"], linewidth=2.5)
+
+    plt.title("4. Impacto Pandemia: Comparativa Mensual 2019 vs 2020", fontsize=14, fontweight='bold')
+    plt.xticks(range(1, 13), ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'])
+    plt.ylabel("% de Fraude")
+    plt.legend(title="Año", loc="upper right")
+    plt.savefig("temp_4_comparativa.png", bbox_inches='tight')
+    sns.set_style("whitegrid")
+    plt.show()
+
+    print("Gráficos generados exitosamente.")
 
 
 
@@ -374,6 +405,8 @@ def graficar_riesgo_porcategoria(df, columna, target= "is_fraud"):
     sns.barplot(x=riesgo.values, y=riesgo.index, palette="Reds_r")
     plt.title(f"Tasa de riesgo de fraude por {columna}")
     plt.xlabel("Porcentaje de Fraude en esta categoría")
+    sns.set_style("whitegrid")
+    plt.savefig(f"Riesgo por_{columna}.pdf", bbox_inches='tight', dpi=300)
     plt.show()
 
 
@@ -406,6 +439,8 @@ def grafico_tasa_por_variable(df, columna, target="is_fraud"):
     plt.grid(axis='y', alpha=0.3)
     plt.legend()
     plt.tight_layout()
+    sns.set_style("whitegrid")
+    plt.savefig(f"Tasa de_{columna}.pdf", bbox_inches='tight', dpi=300)
     plt.show()
 
 
