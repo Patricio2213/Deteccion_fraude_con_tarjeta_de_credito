@@ -151,6 +151,7 @@ resumen(data)
 print("\n" + "="*60)
 print("4. ANÁLISIS UNIVARIADO")
 print("="*60)
+make_histogram(data,"amt")
 #graficar_densidad(data,num_columns)
 #for num_var in num_columns:
  #   make_boxplot(data,num_var)

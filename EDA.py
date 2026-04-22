@@ -82,6 +82,64 @@ def graficar_densidad_target(df, columnas_num, target="is_fraud", auto_zoom=True
         plt.tight_layout()
         plt.show()
  #EDA PROFESOR
+def make_histogram(dataframe, num_var, bins=30, custom_ticks=None, unit=''):
+
+    # Tamaño de la figura
+    plt.figure(figsize=(16, 9))
+
+    # Crear el histograma
+    plt.hist(dataframe[num_var].dropna(), bins=bins, density=True, rwidth=0.95)
+
+    # Etiquetas de los ejes
+    plt.title(f"Histograma" f" {num_var}", fontsize=14)
+    plt.xlabel(num_var)
+    plt.ylabel('Relative Frequency')
+
+    # Modificar los 'ticks' del eje x
+    if custom_ticks is not None:
+        plt.xticks(custom_ticks)
+
+    # Control de la grilla
+    plt.grid(axis='x', visible=False)
+    plt.grid(axis='y', visible=True)
+
+    # Fijar los ticks
+    plt.tick_params(axis='x', pad=10)
+    plt.tick_params(axis='y', pad=5)
+
+    # Calcular estadísticas descriptivas
+    mean_val = dataframe[num_var].mean()
+    std_val = dataframe[num_var].std()
+    median_val = dataframe[num_var].median()
+    min_val = dataframe[num_var].min()
+    max_val = dataframe[num_var].max()
+    skew_val = dataframe[num_var].skew()
+
+    # Guardar las estadísticas en una tupla
+    stats_text = (
+        f"Mean: {mean_val:.2f} {unit}\n"
+        f"Median: {median_val:.2f} {unit}\n"
+        f"Std: {std_val:.2f} {unit}\n"
+        f"Min: {min_val:.2f} {unit}\n"
+        f"Max: {max_val:.2f} {unit}\n"
+        f"Skew: {skew_val:.2f}"
+    )
+
+    # Colocar las estadísticas en la figura
+    plt.text(
+        0.95, 0.95, stats_text,
+        transform=plt.gca().transAxes,
+        fontsize=12,
+        verticalalignment='top',
+        horizontalalignment='right',
+        multialignment='right',
+        fontfamily='monospace',
+        bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray')
+    )
+
+    # Mostrar la figura
+    plt.tight_layout()
+    plt.show()
 
 def make_barplot(dataframe, cat_var,top):
     # Calcular porcentajes
