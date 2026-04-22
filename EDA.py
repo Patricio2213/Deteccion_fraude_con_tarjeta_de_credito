@@ -1,6 +1,3 @@
-
-
-#DENSIDAD
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -9,14 +6,49 @@ from scipy import stats
 import itertools
 
 plt.style.use('fivethirtyeight')
+#DENSIDAD
+def graficar_densidad(df, columnas_num):
+    print(f"Generando {len(columnas_num)} gráficos de densidad general...\n")
+    print("-" * 40)
 
-def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
+    for col in columnas_num:
+        plt.figure(figsize=(12, 6))
+
+        # Graficamos la densidad simple
+        sns.kdeplot(
+            data=df,
+            x=col,
+            fill=True,
+            color="teal",  # Un color sobrio para la curva
+            alpha=0.4,
+            linewidth=2.5
+        )
+
+        # Configuración visual
+        plt.title(f"Distribución General: {col}", fontsize=14)
+        plt.xlabel(col)
+        plt.ylabel("Densidad")
+        plt.grid(axis='y', linestyle='--', alpha=0.6)
+
+        # Zoom automático al percentil 99 para evitar valores atípicos (outliers)
+        limite_inf = df[col].min()
+        limite_sup = df[col].quantile(0.99)
+        if limite_sup > limite_inf:
+            plt.xlim(limite_inf, limite_sup)
+
+        plt.savefig(f"densidad_{col}.png", bbox_inches='tight', dpi=300)
+
+        plt.tight_layout()
+        plt.show()
+
+
+def graficar_densidad_target(df, columnas_num, target="is_fraud", auto_zoom=True):
 
     print(f"Iniciando generación de {len(columnas_num)} gráficos de densidad...\n")
     print("=" * 60)
 
     for col in columnas_num:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(16, 9))
 
 
         sns.kdeplot(
@@ -46,7 +78,7 @@ def graficar_densidad(df, columnas_num, target="is_fraud", auto_zoom=True):
         sns.set_style("whitegrid")
 
             # Guardar el gráfico con el nombre de la columna
-        plt.savefig(f"densidad_{col}.pdf", bbox_inches='tight', dpi=300)
+        plt.savefig(f"densidad_{col} contra_{target}.png", bbox_inches='tight', dpi=300)
         plt.tight_layout()
         plt.show()
  #EDA PROFESOR
@@ -79,7 +111,7 @@ def make_barplot(dataframe, cat_var,top):
     my_fig.grid(axis='y', visible=True)
     sns.set_style("whitegrid")
     # Guardar el gráfico usando el nombre de la variable analizada
-    plt.savefig(f"barplot_{cat_var}.pdf", bbox_inches='tight', dpi=300)
+    plt.savefig(f"barplot_{cat_var}.png", bbox_inches='tight', dpi=300)
     # Mostrar la figura
     plt.tight_layout()
     plt.show()
@@ -126,7 +158,7 @@ def make_boxplot(dataframe, num_var, unit=''):
     )
     sns.set_style("whitegrid")
     # Guardar el gráfico usando el nombre de la variable analizada
-    plt.savefig(f"boxplot_{num_var}.pdf", bbox_inches='tight', dpi=300)
+    plt.savefig(f"boxplot_{num_var}.png", bbox_inches='tight', dpi=300)
     # Mostrar la figura
     plt.tight_layout()
     plt.show()
@@ -406,6 +438,7 @@ def graficar_riesgo_porcategoria(df, columna, target= "is_fraud"):
     plt.title(f"Tasa de riesgo de fraude por {columna}")
     plt.xlabel("Porcentaje de Fraude en esta categoría")
     sns.set_style("whitegrid")
+    plt.tight_layout()
     plt.savefig(f"Riesgo por_{columna}.pdf", bbox_inches='tight', dpi=300)
     plt.show()
 
@@ -513,21 +546,6 @@ def generar_tablas_tesis(df, var_numericas, target="is_fraud"):
 
     return pd.DataFrame(res_descriptivo), pd.DataFrame(res_comparativo)
 
-
-# ==========================================
-#  FUNCIÓN PARA EL BOXPLOT NORMAL
-# ==========================================
-def graficar_boxplot_normal(df, var_numerica, target="is_fraud"):
-
-    plt.figure(figsize=(10, 6))
-    sns.boxplot(data=df, x=target, y=var_numerica)
-
-    plt.title(f'Análisis de Extremos: {var_numerica} por Clase (Con Outliers)', fontweight='bold')
-    plt.xlabel(f'{target} (0 = No, 1 = Sí)', fontweight='bold')
-    plt.ylabel(var_numerica, fontweight='bold')
-    plt.grid(axis='y', linestyle='--', alpha=0.5)
-    plt.tight_layout()
-    plt.show()
 
 
 # ==========================================

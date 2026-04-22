@@ -7,34 +7,36 @@ from models import *
 
 data_train=buscar_y_cargar("fraudTrain.csv")
 data_test=buscar_y_cargar("fraudTest.csv")
+data=pd.concat([data_train, data_test], ignore_index=True)
+print(data.head())
 
 # Crear una lista con el nombre de las variables categóricas
-cat_columns = data_train.select_dtypes(include=['object', 'string']).columns
+cat_columns = data.select_dtypes(include=['object', 'string']).columns
 
 
 # Definir las que NO queremos considerando id y variables que no tenga sentido analizar
 cols_a_eliminar = ['Unnamed: 0', 'cc_num', 'unix_time',"is_fraud"]
 
 # Creamos la lista de numéricas excluyendo las de arriba
-num_columns = data_train.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
+num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
 
 
 # ===================================================================
 # EJECUTAR ANÁLISIS DEL DATASET
 # ===================================================================
 #  Identificador único de persona
-data_train['persona_id'] = (
-    data_train['first'].astype(str) + "_" +
-    data_train['last'].astype(str) + "_" +
-    data_train['gender'].astype(str) + "_" +
-    data_train['dob'].astype(str) + "_" +
-    data_train['lat'].astype(str) + "_" +
-    data_train['long'].astype(str)
+data['persona_id'] = (
+    data['first'].astype(str) + "_" +
+    data['last'].astype(str) + "_" +
+    data['gender'].astype(str) + "_" +
+    data['dob'].astype(str) + "_" +
+    data['lat'].astype(str) + "_" +
+    data['long'].astype(str)
 )
 
 # Cuántos cc_num distintos tiene cada persona
 tarjetas_por_persona = (
-    data_train.groupby('persona_id')['cc_num']
+    data.groupby('persona_id')['cc_num']
     .nunique()
     .reset_index()
 )
@@ -61,12 +63,23 @@ print(f"\nMáximo número de tarjetas que tiene una persona: {max_tarjetas}")
 #-------------------------------------------------------
 #  Calcular el mínimo y el máximo de las fechas
 #-------------------------------------------------------
+#PERIODO DE DATA TEST
 fecha_min_test = data_test["trans_date_trans_time"].min()
 fecha_max_test = data_test["trans_date_trans_time"].max()
 
-print("Periodo de data_train")
+#PERIODO DE DATA_TRAIN
 fecha_min_train = data_train["trans_date_trans_time"].min()
 fecha_max_train = data_train["trans_date_trans_time"].max()
+
+#PERIODO DE DATA
+fecha_min_data = data["trans_date_trans_time"].min()
+fecha_max_data = data["trans_date_trans_time"].max()
+
+print("="*40)
+print("RANGO TEMPORAL DE DATA")
+print("="*40)
+print(f"Primera transacción (Mín): {fecha_min_data}")
+print(f"Última transacción (Máx):  {fecha_max_data}")
 
 print("="*40)
 print("RANGO TEMPORAL DE DATA_TEST")
@@ -80,6 +93,20 @@ print("="*40)
 print(f"Primera transacción (Mín): {fecha_min_train}")
 print(f"Última transacción (Máx):  {fecha_max_train}")
 
+#---------------------------------------------------
+print("="*40)
+print("CONTEO DE COMERCIOS")
+print("="*40)
+print(data["merchant"].nunique())
+print("="*40)
+print("CONTEO DE CATEGORY")
+print("="*40)
+print(data["category"].nunique())
+print("="*40)
+print("CONTEO DE CITY")
+print("="*40)
+print(data["city"].nunique())
+
 
 print("\n" + "="*60)
 print("COMENZANDO EL EDA")
@@ -87,13 +114,19 @@ print("COMENZANDO EL EDA")
 print("\n" + "="*60)
 print("1. ANÁLISIS DE NULOS")
 print("="*60)
-ver_nulos(data_train)
+ver_nulos(data)
 
 print("\n" + "="*60)
 print("2. ANÁLISIS DE DUPLICADOS")
 print("="*60)
-ver_duplicados(data_train)
+ver_duplicados(data)
 
+
+print("\n" + "="*60)
+print("3. BALANCE DE CLASES DATA(is_fraud)")
+print("="*60)
+print(balance_clases(data)) #0.52
+print("\n" + "="*60)
 print("\n" + "="*60)
 print("3. BALANCE DE CLASES DATA_TRAIN(is_fraud)")
 print("="*60)
@@ -102,7 +135,7 @@ print("\n" + "="*60)
 print("\n" + "="*60)
 print("BALANCE DE CLASES DATA_TEST(is_fraud)")
 print("="*60)
-print(balance_clases(data_test))
+print(balance_clases(data_test))#0.38%
 print("\n" + "="*60)
 
 #----------------------------------------------
@@ -113,17 +146,21 @@ print("\n" + "="*60)
 print("\n" + "="*60)
 print("4. RESUMEN ESTADÍSTICO DEL DATASET")
 print("="*60)
-resumen(data_train)
+resumen(data)
 
-
-#graficar_densidad(data_train,num_columns,target="is_fraud")
+print("\n" + "="*60)
+print("4. ANÁLISIS UNIVARIADO")
+print("="*60)
+#graficar_densidad(data,num_columns)
 #for num_var in num_columns:
- #   make_boxplot(data_train,num_var)
-#for num_var in num_columns:
- #   graficar_boxplot_normal(data_train, num_var, target="is_fraud")
+ #   make_boxplot(data,num_var)
 
 #for cat_var in cat_columns:
- #   make_barplot(data_train,cat_var,top=15) #univariado
+ #   make_barplot(data,cat_var,top=15) #univariado
+
+
+#for num_var in num_columns:
+ #   graficar_boxplot_normal(data, num_var, target="is_fraud")
 
 #print("\n Matriz de correlación...")
 #make_heat_map(data_train,num_columns)#multivariado
@@ -148,7 +185,7 @@ print("="*70)
 
 
 print("\nTabla de estadísticas comparativas")
-tabla = tabla_estadisticas_fraude(data_train, num_columns)
+tabla = tabla_estadisticas_fraude(data, num_columns)
 
 #make_scatter_plot(data_train,var_claves_num)#multivariado  #DA PROBLEMAS, LO ASOCIO A LA CANTIDAD DE OBSERVACIONES
 
@@ -343,17 +380,17 @@ except Exception as e:
 
 # Creo una variable: ES ONLINE (1) VS FÍSICO (0)
 
-categorias_net = ["grocery_net", "misc_net", "shopping_net"]
+#categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 
-data_train["es_online"] = data_train["category"].isin(categorias_net).astype(int)
+#data_train["es_online"] = data_train["category"].isin(categorias_net).astype(int)
 
-print("Conteo de compras online vs físicas:")
-print(data_train["es_online"].value_counts())
+#print("Conteo de compras online vs físicas:")
+#print(data_train["es_online"].value_counts())
 
-print("\nPorcentaje:")
-print(data_train["es_online"].value_counts(normalize=True) * 100)
+#print("\nPorcentaje:")
+#print(data_train["es_online"].value_counts(normalize=True) * 100)
 
-grafico_tasa_por_variable(data_train, "es_online")
+#grafico_tasa_por_variable(data_train, "es_online")
 
 #Veamos que variables podrían necesitar log
 
