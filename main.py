@@ -10,12 +10,11 @@ data_test=buscar_y_cargar("fraudTest.csv")
 data=pd.concat([data_train, data_test], ignore_index=True)
 print(data.head())
 
-# Crear una lista con el nombre de las variables categóricas
-cat_columns = data.select_dtypes(include=['object', 'string']).columns
-
-
 # Definir las que NO queremos considerando id y variables que no tenga sentido analizar
-cols_a_eliminar = ['Unnamed: 0', 'cc_num', 'unix_time',"is_fraud"]
+cols_a_eliminar = ['Unnamed: 0', 'cc_num', 'unix_time',"is_fraud","zip"]
+cols_a_eliminar2 = ["trans_num","trans_date_trans_time"]
+# Crear una lista con el nombre de las variables categóricas
+cat_columns = data.select_dtypes(include=['object', 'string']).drop(columns=cols_a_eliminar2,errors="ignore").columns
 
 # Creamos la lista de numéricas excluyendo las de arriba
 num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
@@ -151,27 +150,24 @@ resumen(data)
 print("\n" + "="*60)
 print("4. ANÁLISIS UNIVARIADO")
 print("="*60)
-make_histogram(data,"amt")
+#make_histogram(data,"amt")
 #graficar_densidad(data,num_columns)
 #for num_var in num_columns:
- #   make_boxplot(data,num_var)
+  #  make_boxplot(data,num_var)
 
 #for cat_var in cat_columns:
  #   make_barplot(data,cat_var,top=15) #univariado
 
+#------------------------------------------------------
+#ANÁLISIS MULTIVARIADO
+#------------------------------------------------------
+#boxplots_con_tabla(data, num_columns,target="is_fraud")
 
-#for num_var in num_columns:
- #   graficar_boxplot_normal(data, num_var, target="is_fraud")
-
+#make_stacked_barplots(data, cat_columns, top=10)
 #print("\n Matriz de correlación...")
 #make_heat_map(data_train,num_columns)#multivariado
 
 #graficar_temporalidad_fraude(data_train)
-#fecha_min = data_train['trans_date_trans_time'].min()
-#fecha_max = data_train['trans_date_trans_time'].max()
-
-#print(f"Los datos comienzan el: {fecha_min}")
-#print(f"Los datos terminan el: {fecha_max}")
 #grafico_tasa_por_variable(data_train, 'category')
 #grafico_tasa_por_variable(data_train, 'es_nuevo')# Analizando Riesgo en Comercios Nuevos
 

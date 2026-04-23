@@ -157,6 +157,7 @@ def make_barplot(dataframe, cat_var,top):
                     color='black', weight='bold')
 
     # Añadir títulos a los ejes
+    plt.title(f"Barplot" f" {cat_var}", fontsize=14)
     plt.xlabel(cat_var)
     plt.ylabel('Percentage (%)')
 
@@ -182,6 +183,7 @@ def make_boxplot(dataframe, num_var, unit=''):
     sns.boxplot(dataframe, x=num_var)
 
     # Etiquetas de los ejes
+    plt.title(f"Boxplot" f" {num_var}", fontsize=14)
     plt.xlabel(num_var)
     plt.ylabel('Values')
 
@@ -343,6 +345,7 @@ def make_stacked_barplots(dataframe, cat_vars, top=10):
 
         # --- Gráfico ---
         plt.figure(figsize=(16, 9))
+        sns.set_style("whitegrid")
         ax = crosstab.plot(kind='bar', stacked=True, ax=plt.gca(), color=['steelblue', 'darkorange'])
 
         plt.title(f"Relación: {var1} (Top {top}) vs {target}", fontsize=16, pad=20)
@@ -365,7 +368,7 @@ def make_stacked_barplots(dataframe, cat_vars, top=10):
         plt.legend(title=target, bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.grid(axis='y', visible=True, alpha=0.3)
         plt.xticks(rotation=45, ha='right')
-        sns.set_style("whitegrid")
+        plt.savefig(f"stacked_barplots{var1} vs {target}.png", bbox_inches='tight', dpi=300)
         plt.tight_layout()
         plt.show()
 
@@ -384,7 +387,9 @@ def boxplots_con_tabla(df, columnas_num, target="is_fraud"):
             showfliers=True
         )
         plt.title(f"Análisis de Extremos: {col} vs Fraude")
+        plt.tight_layout()
         plt.grid(axis='y', linestyle='--', alpha=0.7)
+        plt.savefig(f"boxplot_con_target {col}.png", bbox_inches='tight', dpi=300)
         plt.show()
 
         # Cálculo de los componentes del Boxplot
@@ -433,7 +438,7 @@ def graficar_temporalidad_fraude(df):
     sns.barplot(x=tasa_anual.index, y=tasa_anual.values, color="blue")
     plt.title("Evolución Anual: ¿Está aumentando el fraude año a año?", fontsize=14)
     plt.ylabel("% de Fraude")
-    plt.savefig("temp_1_anual.pdf", bbox_inches='tight')
+    plt.savefig("temp_1_anual.png", bbox_inches='tight')
     sns.set_style("whitegrid")
     plt.tight_layout()
     plt.show()
@@ -442,12 +447,12 @@ def graficar_temporalidad_fraude(df):
     plt.figure(figsize=(12, 6))
         # Calculamos la tasa agrupando por mes
     tasa_mensual = df_temp.groupby("mes")["is_fraud"].mean() * 100
-    sns.lineplot(x=tasa_mensual.index, y=tasa_mensual.values, marker="s", color="darkorange", linewidth=3)
+    sns.barplot(x=tasa_mensual.index, y=tasa_mensual.values, color="green")
     plt.title("Estacionalidad Mensual: ¿Hay meses más peligrosos?", fontsize=14)
     plt.xticks(range(1, 13), ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'])
     plt.ylabel("% de Fraude")
     plt.grid(alpha=0.3)
-    plt.savefig("temp_2_mensual.pdf", bbox_inches='tight')
+    plt.savefig("temp_2_mensual.png", bbox_inches='tight')
     sns.set_style("whitegrid")
     plt.tight_layout()
     plt.show()
@@ -457,33 +462,18 @@ def graficar_temporalidad_fraude(df):
         # Aquí comparamos cómo cambia el reloj según el año
     tasa_hora_año = df_temp.groupby(["hora", "año"])["is_fraud"].mean().reset_index()
     tasa_hora_año["is_fraud"] *= 100
-
-    sns.lineplot(data=tasa_hora_año, x="hora", y="is_fraud", hue="año", marker="o")
+    colores_personalizados = {2019: "blue", 2020: "red"}
+    sns.lineplot(data=tasa_hora_año, x="hora", y="is_fraud", hue="año", marker="o",palette=colores_personalizados)
     plt.title("Reloj del Criminal: Comparativa por Años", fontsize=14)
     plt.xlabel("Hora del Día")
     plt.ylabel("% de Fraude")
     plt.xticks(range(0, 24))
     plt.legend(title="Año")
-    plt.savefig("temp_3_comparativo.pdf", bbox_inches='tight')
+    plt.savefig("temp_3_comparativo.png", bbox_inches='tight')
     sns.set_style("whitegrid")
     plt.tight_layout()
     plt.show()
-    # --- 4. COMPARATIVA CRÍTICA: 2019 vs 2020 ---
-    plt.figure(figsize=(12, 6))
-    # Agrupamos por año y mes
-    tasa_mensual_año = df_temp.groupby(["año", "mes"])["is_fraud"].mean().reset_index()
-    tasa_mensual_año["is_fraud"] *= 100
 
-    sns.lineplot(data=tasa_mensual_año, x="mes", y="is_fraud", hue="año",
-                 marker="o", palette=["#3498db", "#e74c3c"], linewidth=2.5)
-
-    plt.title("4. Impacto Pandemia: Comparativa Mensual 2019 vs 2020", fontsize=14, fontweight='bold')
-    plt.xticks(range(1, 13), ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'])
-    plt.ylabel("% de Fraude")
-    plt.legend(title="Año", loc="upper right")
-    plt.savefig("temp_4_comparativa.png", bbox_inches='tight')
-    sns.set_style("whitegrid")
-    plt.show()
 
     print("Gráficos generados exitosamente.")
 
@@ -604,21 +594,3 @@ def generar_tablas_tesis(df, var_numericas, target="is_fraud"):
 
     return pd.DataFrame(res_descriptivo), pd.DataFrame(res_comparativo)
 
-
-
-# ==========================================
-#  FUNCIÓN PARA EL BOXPLOT CON ZOOM
-# ==========================================
-def graficar_boxplot_zoom(df, var_numerica, target="is_fraud"):
-
-    plt.figure(figsize=(10, 6))
-    sns.boxplot(data=df, x=target, y=var_numerica, showfliers=False)
-
-    plt.title(
-        f'Zoom del Análisis de Extremos: {var_numerica} por Clase\n(Excluyendo Outliers para visualizar Mediana y Cuartiles)',
-        fontweight='bold')
-    plt.xlabel(f'{target} (0 = No, 1 = Sí)', fontweight='bold')
-    plt.ylabel(var_numerica, fontweight='bold')
-    plt.grid(axis='y', linestyle='--', alpha=0.5)
-    plt.tight_layout()
-    plt.show()
