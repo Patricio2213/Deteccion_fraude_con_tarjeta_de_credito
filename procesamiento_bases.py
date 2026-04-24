@@ -26,61 +26,134 @@ def balance_clases(df, columna_objetivo='is_fraud'):
 
 #Creación de columnas extra obligatorias
 
-#Haversine
+
+
+#-------------------------------------------------------------------
+#DITANCIA
+
+# 1. Definición de la fórmula Haversine (Matemática pura)
 def haversine(lat1, lon1, lat2, lon2):
-    r=6371 #radio de la tierra en km
+    r = 6371  # Radio de la Tierra en km
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    c = 2 * np.arcsin(np.sqrt(a))
+    return r * c
+def obtener_distancia_entre_comercios(df):
 
-    lat1, lon1, lat2, lon2= map(np.radians,[lat1, lon1, lat2, lon2])
-    dlat=lat2-lat1
-    dlon=lon2-lon1
-    a=np.sin(dlat/2)**2+ np.cos(lat1)*np.cos(lat2)*np.sin(dlon/2)**2
-    c=2*np.arcsin(np.sqrt(a))
-    haversine=r*c
-    return haversine
+    # 2. Ordenar datos para que el cálculo sea cronológico por usuario
+    # Creamos una copia interna para no desordenar tu df original
+    df_temp = df.sort_values(by=['cc_num', 'unix_time']).copy()
 
+    # 3. Traer las coordenadas del comercio anterior
+    df_temp['lat_com_ant'] = df_temp.groupby('cc_num')['merch_lat'].shift(1)
+    df_temp['lon_com_ant'] = df_temp.groupby('cc_num')['merch_long'].shift(1)
+
+    # 4. Definir filtro de categorías (Excluir 1, 2, 3)
+    # Solo es válida si la actual NO es online Y la anterior tampoco
+    cats_excluir = ["grocery_net", "misc_net", "shopping_net"]
+    valida_actual = ~df_temp['category'].isin(cats_excluir)
+    valida_anterior = ~df_temp.groupby('cc_num')['category'].shift(1).isin(cats_excluir)
+
+    filtro_fisico = valida_actual & valida_anterior
+
+    # 5. Inicializar la columna de resultados en 0.0
+    distancia_serie = pd.Series(0.0, index=df_temp.index)
+
+    # 6. Aplicar la fórmula SOLO a las filas que cumplen el filtro
+    df_filtrado = df_temp[filtro_fisico]
+
+    if not df_filtrado.empty:
+        distancia_serie.loc[df_filtrado.index] = haversine(
+            df_filtrado['lat_com_ant'],
+            df_filtrado['lon_com_ant'],
+            df_filtrado['merch_lat'],
+            df_filtrado['merch_long']
+        )
+
+    # 7. Retornar la columna alineada con el índice original
+    # (Usamos fillna por si acaso la primera transacción genera un nulo)
+    return distancia_serie
 #velocidad de transacciones
 def calcular_velocidad(data):
+    # 0. Función Haversine interna para que no dependa de nada externo
+    def haversine(lat1, lon1, lat2, lon2):
+        r = 6371
+        lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+        c = 2 * np.arcsin(np.sqrt(a))
+        return r * c
 
-    # 1. Ordenar por tarjeta y tiempo
-    data = data.sort_values(["cc_num", "trans_date_trans_time"])
+    categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 
-    # 2. Asegurar formato datetime
-    data["trans_date_trans_time"] = pd.to_datetime(data["trans_date_trans_time"])
+    # Trabajamos sobre una copia y ordenamos cronológicamente
+    df = data.sort_values(["cc_num", "trans_date_trans_time"]).copy()
+    df["trans_date_trans_time"] = pd.to_datetime(df["trans_date_trans_time"])
 
-    # 3. Tiempo entre transacciones (en horas)
-    tiempo_horas = (
-        data.groupby("cc_num")["trans_date_trans_time"]
+    # Identificar tipo de transacción
+    df["es_online"] = df["category"].isin(categorias_net)
+
+    # --- VELOCIDAD LOCAL ---
+    df_local = df[~df["es_online"]].copy()
+
+    if not df_local.empty:
+        df_local["tiempo_horas"] = (
+            df_local.groupby("cc_num")["trans_date_trans_time"]
+            .diff()
+            .dt.total_seconds() / 3600
+        )
+
+        df_local["lat_prev"] = df_local.groupby("cc_num")["merch_lat"].shift()
+        df_local["lon_prev"] = df_local.groupby("cc_num")["merch_long"].shift()
+
+        df_local["distancia_km"] = haversine(
+            df_local["lat_prev"], df_local["lon_prev"],
+            df_local["merch_lat"], df_local["merch_long"]
+        )
+
+        df_local["velocidad_local"] = df_local["distancia_km"] / df_local["tiempo_horas"]
+        df_local["velocidad_local"] = df_local["velocidad_local"].replace([np.inf, -np.inf], 0)
+
+    # --- VELOCIDAD INTERNET ---
+    df_online = df[df["es_online"]].copy()
+
+    if not df_online.empty:
+        df_online["tiempo_horas"] = (
+            df_online.groupby("cc_num")["trans_date_trans_time"]
+            .diff()
+            .dt.total_seconds() / 3600
+        )
+
+        df_online["lat_prev"] = df_online.groupby("cc_num")["merch_lat"].shift()
+        df_online["lon_prev"] = df_online.groupby("cc_num")["merch_long"].shift()
+
+        df_online["distancia_km"] = haversine(
+            df_online["lat_prev"], df_online["lon_prev"],
+            df_online["merch_lat"], df_online["merch_long"]
+        )
+
+        df_online["velocidad_internet"] = df_online["distancia_km"] / df_online["tiempo_horas"]
+        df_online["velocidad_internet"] = df_online["velocidad_internet"].replace([np.inf, -np.inf], 0)
+
+    # --- ASIGNACIÓN DE RESULTADOS AL DATAFRAME PRINCIPAL ---
+    df["velocidad_local"] = df_local["velocidad_local"] if not df_local.empty else 0
+    df["velocidad_internet"] = df_online["velocidad_internet"] if not df_online.empty else 0
+
+    # Primera compra
+    df["is_first_buy"] = (
+        df.groupby("cc_num")["trans_date_trans_time"]
         .diff()
-        .dt.total_seconds() / 3600
+        .isna()
+        .astype(int)
     )
 
-    # 4. Coordenadas anteriores de comercios(distancia entre casa es siempre igual por tarjeta)
+    df["velocidad_local"] = df["velocidad_local"].fillna(0)
+    df["velocidad_internet"] = df["velocidad_internet"].fillna(0)
 
-    data["merch_lat_prev"] = data.groupby("cc_num")["merch_lat"].shift()
-    data["merch_lon_prev"] = data.groupby("cc_num")["merch_long"].shift()
-
-    # 5. Distancia real (Haversine)
-    data["distancia_km"] = haversine(
-        data["merch_lat_prev"],
-        data["merch_lon_prev"],
-        data["merch_lat"],
-        data["merch_long"]
-    )
-
-    # 6. Velocidad
-    velocidad = data["distancia_km"] / tiempo_horas
-
-    #7.Crear columna para primeras compras
-    is_first_buy = velocidad.isna().astype(int)
-    #  Limpieza, dejar infinitos como un numero gigante para notar la anomalia
-    velocidad = velocidad.replace([np.inf, -np.inf], 10000)
-
-    velocidad[velocidad < 0] = np.nan  # por seguridad, se mantiene pq no pueden ser menores de 0
-
-
-    return velocidad, is_first_buy
-
-
+    return df.sort_index()[["velocidad_local", "velocidad_internet", "is_first_buy"]]
 def zcore_monto(data):
     # 1. prom por tarjeta
     mean_amt = data.groupby("cc_num")["amt"].transform("mean")

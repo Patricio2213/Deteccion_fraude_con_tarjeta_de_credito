@@ -176,13 +176,13 @@ print("="*60)
 
 #grafico_tasa_por_variable(data_train, "gender") #influye el genero en la probabilidad?
 
-print("\n" + "="*70)
-print("EXPLORACIÓN PROFUNDA")
-print("="*70)
+#print("\n" + "="*70)
+#print("EXPLORACIÓN PROFUNDA")
+#print("="*70)
 
 
-print("\nTabla de estadísticas comparativas")
-tabla = tabla_estadisticas_fraude(data, num_columns)
+#print("\nTabla de estadísticas comparativas")
+#tabla = tabla_estadisticas_fraude(data, num_columns)
 
 #make_scatter_plot(data_train,var_claves_num)#multivariado  #DA PROBLEMAS, LO ASOCIO A LA CANTIDAD DE OBSERVACIONES
 
@@ -303,81 +303,11 @@ except Exception as e:
 
 
 #TABLAS SIN UNSO ACTUALMENTE PQ NO SE HAN AÑADIDO LAS NUEVAS
-#stats_vel_original = data_train.groupby('is_fraud')['velocidad'].describe(percentiles=[.25, .5, .75])
-
-#  Cálculo de los componentes del Boxplot
-#stats_vel_original['IQR'] = stats_vel_original['75%'] - stats_vel_original['25%']
-
-# Bigote Superior: Donde estadísticamente empiezan los outliers
-#stats_vel_original['Bigote_Superior'] = stats_vel_original['75%'] + (1.5 * stats_vel_original['IQR'])
-
-# Mostrar la tabla
-#print("="*65)
-#print("TABLA ESTADÍSTICA")
-#print("="*65)
-#print(stats_vel_original.T)
-
-#tabla_a, tabla_b = generar_tablas_tesis(data_train, num_columns)
-
-#print("\n" + "="*80)
-#print("TABLA A: ESTADÍSTICAS DESCRIPTIVAS POR GRUPO")
-#print("="*80)
-#print(tabla_a.to_string(index=False))
-
-#print("\n" + "="*80)
-#print("TABLA B: MÉTRICAS DE COMPARACIÓN Y SEPARACIÓN (FRAUDE VS LEGÍTIMO)")
-#print("="*80)
-#print(tabla_b.to_string(index=False))
-
-
-# Veamos las categorias de comercio
-
-# Categorías distintas ordenadas alfabéticamente
-#categorias_unicas = sorted(data_train["category"].dropna().unique())
-
-#print("Listado completo de categorías:")
-#for cat in categorias_unicas:
- #   print(cat)
-
-#print("\nCantidad total de categorías distintas:", len(categorias_unicas))
-
-# VISUALIZAR UBICACIÓN DE COMERCIOS diferenciando net del resto
-
-# Tomo una muestra para no saturar el gráfico
-#df_plot = data_train.sample(n=1000000, random_state=50).copy()
 
 # Definir categorías online
 #categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 
-#data_train["tipo"] = np.where(
- #   data_train["category"].isin(categorias_net),
-  #  "net",
-   # "resto"
-#)
-
-# Gráfico
-#plt.figure(figsize=(10, 6))
-
-#sns.scatterplot(
- #   data=data_train,
-  #  x="merch_long",
-   # y="merch_lat",
-    #hue="tipo",
-    #alpha=0.5
-#)
-
-#plt.title("Ubicación de comercios (net vs resto)")
-#plt.xlabel("Longitud")
-#plt.ylabel("Latitud")
-#plt.legend()
-#plt.grid(alpha=0.3)
-
-#plt.show()
-
-
 # Creo una variable: ES ONLINE (1) VS FÍSICO (0)
-
-#categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 
 #data_train["es_online"] = data_train["category"].isin(categorias_net).astype(int)
 
@@ -389,121 +319,10 @@ except Exception as e:
 
 #grafico_tasa_por_variable(data_train, "es_online")
 
-#Veamos que variables podrían necesitar log
+data["distancia"]=obtener_distancia_entre_comercios(data)
+print(data["distancia"].tail(10))
+columnas_nuevas = ["velocidad_local", "velocidad_internet", "is_first_buy"]
+data[columnas_nuevas] = calcular_velocidad(data)
 
-# DIAGNÓSTICO DE VARIABLES NUMÉRICAS:
-# VER SI CONVIENE USAR LOG, ZSCORE O DEJARLA IGUAL
-
-#def diagnostico_transformaciones(df, columnas_numericas):
- #   resultados = []
-
-  #  for col in columnas_numericas:
-   #     serie = df[col].dropna()
-
-        # Si la variable no tiene datos suficientes, la marco para revisión
-    #    if len(serie) < 5:
-     #       resultados.append({
-      #          "Variable": col,
-       #         "Min": np.nan,
-        #        "Q1": np.nan,
-         #       "Mediana": np.nan,
-          #      "Q3": np.nan,
-           #     "Max": np.nan,
-            #    "Skew": np.nan,
-             #   "%_Ceros": np.nan,
-              #  "%_Negativos": np.nan,
-               # "%_Outliers_IQR": np.nan,
-                #"Sugerencia": "revisar",
-                #"Motivo": "muy pocos datos"
-            #})
-            #continue
-
-        # Estadísticos básicos
-        #q1 = serie.quantile(0.25)
-        #mediana = serie.median()
-        #q3 = serie.quantile(0.75)
-        #iqr = q3 - q1
-        #min_val = serie.min()
-        #max_val = serie.max()
-        #skew_val = serie.skew()
-
-        # Porcentaje de ceros y negativos
-        #pct_ceros = (serie == 0).mean() * 100
-        #pct_negativos = (serie < 0).mean() * 100
-
-        # Outliers usando criterio IQR
-        #lim_inf = q1 - 1.5 * iqr
-        #lim_sup = q3 + 1.5 * iqr
-        #pct_outliers = ((serie < lim_inf) | (serie > lim_sup)).mean() * 100
-
-
-        # REGLAS METODOLÓGICAS PARA SUGERIR TRANSFORMACIÓN
-
-
-        # Caso 1: si tiene negativos, no conviene aplicar log directo
-        #if pct_negativos > 0:
-         #   sugerencia = "zscore o nada"
-          #  motivo = "tiene valores negativos, log no aplica directo"
-
-        # Caso 2: si está muy sesgada a la derecha y no tiene negativos
-        #elif skew_val > 2:
-         #   sugerencia = "log"
-          #  motivo = "alta asimetría positiva"
-
-        # Caso 3: si está moderadamente sesgada y con bastantes outliers
-        #elif skew_val > 1 and pct_outliers > 5:
-         #   sugerencia = "log"
-          #  motivo = "sesgo positivo y presencia de outliers"
-
-        # Caso 4: si no está tan sesgada, pero tiene escala rara o outliers
-        #elif abs(skew_val) <= 1 and pct_outliers > 5:
-         #   sugerencia = "zscore"
-          #  motivo = "distribución razonable, pero con outliers/escala"
-
-        # Caso 5: distribución bastante estable
-        #else:
-         #   sugerencia = "nada o zscore"
-          #  motivo = "distribución relativamente estable"
-
-        #resultados.append({
-         #   "Variable": col,
-          #  "Min": round(min_val, 3),
-           # "Q1": round(q1, 3),
-            #"Mediana": round(mediana, 3),
-            #"Q3": round(q3, 3),
-            #"Max": round(max_val, 3),
-            #"Skew": round(skew_val, 3),
-            #"%_Ceros": round(pct_ceros, 2),
-            #"%_Negativos": round(pct_negativos, 2),
-            #"%_Outliers_IQR": round(pct_outliers, 2),
-            #"Sugerencia": sugerencia,
-            #"Motivo": motivo
-        #})
-
-    #tabla_diag = pd.DataFrame(resultados).sort_values(
-     #   by=["Sugerencia", "Skew"],
-      #  ascending=[True, False]
-    #)
-
-    #return tabla_diag
-
-
-
-# EJECUCIÓN DEL DIAGNÓSTICO (veamos qué columnas podrían necesitar log o algun procesamiento extra)
-# EXCLUYO LA VARIABLE OBJETIVO Y OTRAS QUE NO QUIERO EVALUAR
-
-
-#columnas_revisar = [
- #   col for col in data_train.select_dtypes(include=["number"]).columns
-  #  if col not in ["is_fraud"]
-#]
-
-#tabla_diagnostico = diagnostico_transformaciones(data_train, columnas_revisar)
-
-#print("\n" + "=" * 120)
-#print("DIAGNÓSTICO DE TRANSFORMACIONES")
-#print("=" * 120)
-#print(tabla_diagnostico.to_string(index=False))
-
-#MODELOS
-
+# Verificación opcional
+print(data[columnas_nuevas].tail(10))

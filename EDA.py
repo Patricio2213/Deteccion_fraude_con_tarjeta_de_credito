@@ -25,7 +25,7 @@ def graficar_densidad(df, columnas_num):
         )
 
         # Configuración visual
-        plt.title(f"Distribución General: {col}", fontsize=14)
+        #plt.title(f"Distribución General: {col}", fontsize=14)
         plt.xlabel(col)
         plt.ylabel("Densidad")
         plt.grid(axis='y', linestyle='--', alpha=0.6)
@@ -64,7 +64,7 @@ def graficar_densidad_target(df, columnas_num, target="is_fraud", auto_zoom=True
 
         plt.xlabel(col)
         plt.ylabel("Densidad (Proporción)")
-        plt.title(f"Distribución de Densidad: {col}")
+        #plt.title(f"Distribución de Densidad: {col}")
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.grid(axis='x', visible=False)
 
@@ -157,7 +157,7 @@ def make_barplot(dataframe, cat_var,top):
                     color='black', weight='bold')
 
     # Añadir títulos a los ejes
-    plt.title(f"Barplot" f" {cat_var}", fontsize=14)
+    #plt.title(f"Barplot" f" {cat_var}", fontsize=14)
     plt.xlabel(cat_var)
     plt.ylabel('Percentage (%)')
 
@@ -348,7 +348,7 @@ def make_stacked_barplots(dataframe, cat_vars, top=10):
         sns.set_style("whitegrid")
         ax = crosstab.plot(kind='bar', stacked=True, ax=plt.gca(), color=['steelblue', 'darkorange'])
 
-        plt.title(f"Relación: {var1} (Top {top}) vs {target}", fontsize=16, pad=20)
+        #plt.title(f"Relación: {var1} (Top {top}) vs {target}", fontsize=16, pad=20)
         plt.ylabel('Percentage (%)')
         plt.xlabel(var1)
 
@@ -386,7 +386,7 @@ def boxplots_con_tabla(df, columnas_num, target="is_fraud"):
             palette=["steelblue", "darkorange"],
             showfliers=True
         )
-        plt.title(f"Análisis de Extremos: {col} vs Fraude")
+        #plt.title(f"Análisis de Extremos: {col} vs Fraude")
         plt.tight_layout()
         plt.grid(axis='y', linestyle='--', alpha=0.7)
         plt.savefig(f"boxplot_con_target {col}.png", bbox_inches='tight', dpi=300)
