@@ -40,120 +40,119 @@ def haversine(lat1, lon1, lat2, lon2):
     a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
     c = 2 * np.arcsin(np.sqrt(a))
     return r * c
-def obtener_distancia_entre_comercios(df):
 
-    # 2. Ordenar datos para que el cálculo sea cronológico por usuario
-    # Creamos una copia interna para no desordenar tu df original
-    df_temp = df.sort_values(by=['cc_num', 'unix_time']).copy()
 
-    # 3. Traer las coordenadas del comercio anterior
-    df_temp['lat_com_ant'] = df_temp.groupby('cc_num')['merch_lat'].shift(1)
-    df_temp['lon_com_ant'] = df_temp.groupby('cc_num')['merch_long'].shift(1)
 
-    # 4. Definir filtro de categorías (Excluir 1, 2, 3)
-    # Solo es válida si la actual NO es online Y la anterior tampoco
-    cats_excluir = ["grocery_net", "misc_net", "shopping_net"]
-    valida_actual = ~df_temp['category'].isin(cats_excluir)
-    valida_anterior = ~df_temp.groupby('cc_num')['category'].shift(1).isin(cats_excluir)
+def haversine(lat1, lon1, lat2, lon2):
+    r = 6371  # km
 
-    filtro_fisico = valida_actual & valida_anterior
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
 
-    # 5. Inicializar la columna de resultados en 0.0
-    distancia_serie = pd.Series(0.0, index=df_temp.index)
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
 
-    # 6. Aplicar la fórmula SOLO a las filas que cumplen el filtro
-    df_filtrado = df_temp[filtro_fisico]
+    a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2
+    c = 2 * np.arcsin(np.sqrt(a))
 
-    if not df_filtrado.empty:
-        distancia_serie.loc[df_filtrado.index] = haversine(
-            df_filtrado['lat_com_ant'],
-            df_filtrado['lon_com_ant'],
-            df_filtrado['merch_lat'],
-            df_filtrado['merch_long']
-        )
+    return r * c
 
-    # 7. Retornar la columna alineada con el índice original
-    # (Usamos fillna por si acaso la primera transacción genera un nulo)
-    return distancia_serie
-#velocidad de transacciones
-def calcular_velocidad(data):
-    # 0. Función Haversine interna para que no dependa de nada externo
-    def haversine(lat1, lon1, lat2, lon2):
-        r = 6371
-        lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
-        c = 2 * np.arcsin(np.sqrt(a))
-        return r * c
+def distancia_entre_comercios(df):
 
     categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 
-    # Trabajamos sobre una copia y ordenamos cronológicamente
-    df = data.sort_values(["cc_num", "trans_date_trans_time"]).copy()
-    df["trans_date_trans_time"] = pd.to_datetime(df["trans_date_trans_time"])
+    df = df.copy()
+    orden_original = df.index
 
-    # Identificar tipo de transacción
-    df["es_online"] = df["category"].isin(categorias_net)
+    df = df.sort_values(["cc_num", "unix_time"]).copy()
 
-    # --- VELOCIDAD LOCAL ---
-    df_local = df[~df["es_online"]].copy()
+    df["lat_prev"] = df.groupby("cc_num")["merch_lat"].shift(1)
+    df["lon_prev"] = df.groupby("cc_num")["merch_long"].shift(1)
+    df["cat_prev"] = df.groupby("cc_num")["category"].shift(1)
+    df["unix_time_prev"] = df.groupby("cc_num")["unix_time"].shift(1)
 
-    if not df_local.empty:
-        df_local["tiempo_horas"] = (
-            df_local.groupby("cc_num")["trans_date_trans_time"]
-            .diff()
-            .dt.total_seconds() / 3600
-        )
+    df["is_first_buy"] = df["unix_time_prev"].isna().astype(int)
 
-        df_local["lat_prev"] = df_local.groupby("cc_num")["merch_lat"].shift()
-        df_local["lon_prev"] = df_local.groupby("cc_num")["merch_long"].shift()
+    distancia_calc = haversine(
+        df["lat_prev"],
+        df["lon_prev"],
+        df["merch_lat"],
+        df["merch_long"]
+    ).fillna(0)
 
-        df_local["distancia_km"] = haversine(
-            df_local["lat_prev"], df_local["lon_prev"],
-            df_local["merch_lat"], df_local["merch_long"]
-        )
+    df["distancia_local"] = 0.0
+    df["distancia_internet"] = 0.0
 
-        df_local["velocidad_local"] = df_local["distancia_km"] / df_local["tiempo_horas"]
-        df_local["velocidad_local"] = df_local["velocidad_local"].replace([np.inf, -np.inf], 0)
+    actual_online = df["category"].isin(categorias_net)
+    prev_online = df["cat_prev"].isin(categorias_net)
 
-    # --- VELOCIDAD INTERNET ---
-    df_online = df[df["es_online"]].copy()
+    mask_local = (~actual_online) & (~prev_online) & (df["is_first_buy"] == 0)
+    mask_online = actual_online & prev_online & (df["is_first_buy"] == 0)
 
-    if not df_online.empty:
-        df_online["tiempo_horas"] = (
-            df_online.groupby("cc_num")["trans_date_trans_time"]
-            .diff()
-            .dt.total_seconds() / 3600
-        )
+    df.loc[mask_local, "distancia_local"] = distancia_calc.loc[mask_local]
+    df.loc[mask_online, "distancia_internet"] = distancia_calc.loc[mask_online]
 
-        df_online["lat_prev"] = df_online.groupby("cc_num")["merch_lat"].shift()
-        df_online["lon_prev"] = df_online.groupby("cc_num")["merch_long"].shift()
-
-        df_online["distancia_km"] = haversine(
-            df_online["lat_prev"], df_online["lon_prev"],
-            df_online["merch_lat"], df_online["merch_long"]
-        )
-
-        df_online["velocidad_internet"] = df_online["distancia_km"] / df_online["tiempo_horas"]
-        df_online["velocidad_internet"] = df_online["velocidad_internet"].replace([np.inf, -np.inf], 0)
-
-    # --- ASIGNACIÓN DE RESULTADOS AL DATAFRAME PRINCIPAL ---
-    df["velocidad_local"] = df_local["velocidad_local"] if not df_local.empty else 0
-    df["velocidad_internet"] = df_online["velocidad_internet"] if not df_online.empty else 0
-
-    # Primera compra
-    df["is_first_buy"] = (
-        df.groupby("cc_num")["trans_date_trans_time"]
-        .diff()
-        .isna()
-        .astype(int)
+    df.drop(
+        columns=["lat_prev", "lon_prev", "cat_prev", "unix_time_prev"],
+        inplace=True
     )
 
-    df["velocidad_local"] = df["velocidad_local"].fillna(0)
-    df["velocidad_internet"] = df["velocidad_internet"].fillna(0)
+    return df.loc[orden_original]
 
-    return df.sort_index()[["velocidad_local", "velocidad_internet", "is_first_buy"]]
+def calcular_velocidad(df):
+
+    df = df.copy()
+    orden_original = df.index
+
+    df = df.sort_values(["cc_num", "unix_time"]).copy()
+
+    df["unix_time_prev"] = df.groupby("cc_num")["unix_time"].shift(1)
+
+    df["is_first_buy"] = df["unix_time_prev"].isna().astype(int)
+
+    # Tiempo general
+    df["delta_tiempo_horas"] = (
+        df["unix_time"] - df["unix_time_prev"]
+    ) / 3600
+
+    df["delta_tiempo_horas"] = df["delta_tiempo_horas"].fillna(0)
+
+    # 🔥 NUEVO: tiempo separado
+    df["delta_tiempo_local"] = 0.0
+    df["delta_tiempo_internet"] = 0.0
+
+    mask_tiempo_valido = df["delta_tiempo_horas"] > 0
+
+    mask_local = (df["distancia_local"] > 0) & mask_tiempo_valido
+    mask_internet = (df["distancia_internet"] > 0) & mask_tiempo_valido
+
+    df.loc[mask_local, "delta_tiempo_local"] = df.loc[mask_local, "delta_tiempo_horas"]
+    df.loc[mask_internet, "delta_tiempo_internet"] = df.loc[mask_internet, "delta_tiempo_horas"]
+
+    # 🔥 Velocidades usando su propio tiempo
+    df["velocidad_local"] = 0.0
+    df["velocidad_internet"] = 0.0
+
+    mask_local_valido = (df["distancia_local"] > 0) & (df["delta_tiempo_local"] > 0)
+    mask_internet_valido = (df["distancia_internet"] > 0) & (df["delta_tiempo_internet"] > 0)
+
+    df.loc[mask_local_valido, "velocidad_local"] = (
+        df.loc[mask_local_valido, "distancia_local"] /
+        df.loc[mask_local_valido, "delta_tiempo_local"]
+    )
+
+    df.loc[mask_internet_valido, "velocidad_internet"] = (
+        df.loc[mask_internet_valido, "distancia_internet"] /
+        df.loc[mask_internet_valido, "delta_tiempo_internet"]
+    )
+
+    # Limpieza
+    df["velocidad_local"] = df["velocidad_local"].replace([np.inf, -np.inf], 0).fillna(0)
+    df["velocidad_internet"] = df["velocidad_internet"].replace([np.inf, -np.inf], 0).fillna(0)
+
+    df.drop(columns=["unix_time_prev"], inplace=True)
+
+    return df.loc[orden_original]
+
 def zcore_monto(data):
     # 1. prom por tarjeta
     mean_amt = data.groupby("cc_num")["amt"].transform("mean")
