@@ -116,7 +116,7 @@ def calcular_velocidad(df):
 
     df["delta_tiempo_horas"] = df["delta_tiempo_horas"].fillna(0)
 
-    # 🔥 NUEVO: tiempo separado
+    # tiempo separado
     df["delta_tiempo_local"] = 0.0
     df["delta_tiempo_internet"] = 0.0
 
@@ -128,7 +128,7 @@ def calcular_velocidad(df):
     df.loc[mask_local, "delta_tiempo_local"] = df.loc[mask_local, "delta_tiempo_horas"]
     df.loc[mask_internet, "delta_tiempo_internet"] = df.loc[mask_internet, "delta_tiempo_horas"]
 
-    # 🔥 Velocidades usando su propio tiempo
+    # velocidades usando su propio tiempo
     df["velocidad_local"] = 0.0
     df["velocidad_internet"] = 0.0
 
