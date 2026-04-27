@@ -161,7 +161,6 @@ def distancia_entre_comercios(df):
 
 
 def calcular_velocidad(df):
-
     df = df.copy()
 
     orden_original = df.index
@@ -172,14 +171,13 @@ def calcular_velocidad(df):
 
     df["is_first_buy"] = df["unix_time_prev"].isna().astype(int)
 
-    df["delta_tiempo_horas"] = (
-        df["unix_time"] - df["unix_time_prev"]
-    ) / 3600
+    df["delta_tiempo_hours"] = (
+                                       df["unix_time"] - df["unix_time_prev"]
+                               ) / 3600
 
-    df["delta_tiempo_horas"] = df["delta_tiempo_horas"].fillna(0)
+    df["delta_tiempo_hours"] = df["delta_tiempo_hours"].fillna(0)
 
-    df.loc[df["delta_tiempo_horas"] < 0, "delta_tiempo_horas"] = 0
-
+    df.loc[df["delta_tiempo_hours"] < 0, "delta_tiempo_hours"] = 0
 
     df["delta_tiempo_local"] = 0.0
     df["delta_tiempo_internet"] = 0.0
@@ -187,15 +185,15 @@ def calcular_velocidad(df):
     mask_tiempo_valido = df["delta_tiempo_horas"] > 0
 
     mask_local = (
-        (df["distancia_local"] > 0) &
-        (df["is_first_local"] == 0) &
-        mask_tiempo_valido
+            (df["distancia_local"] > 0) &
+            (df["is_first_local"] == 0) &
+            mask_tiempo_valido
     )
 
     mask_internet = (
-        (df["distancia_internet"] > 0) &
-        (df["is_first_internet"] == 0) &
-        mask_tiempo_valido
+            (df["distancia_internet"] > 0) &
+            (df["is_first_internet"] == 0) &
+            mask_tiempo_valido
     )
 
     df.loc[mask_local, "delta_tiempo_local"] = df.loc[mask_local, "delta_tiempo_horas"]
@@ -206,25 +204,30 @@ def calcular_velocidad(df):
     df["velocidad_internet"] = 0.0
 
     df.loc[mask_local, "velocidad_local"] = (
-        df.loc[mask_local, "distancia_local"] /
-        df.loc[mask_local, "delta_tiempo_local"]
+            df.loc[mask_local, "distancia_local"] /
+            df.loc[mask_local, "delta_tiempo_local"]
     )
 
     df.loc[mask_internet, "velocidad_internet"] = (
-        df.loc[mask_internet, "distancia_internet"] /
-        df.loc[mask_internet, "delta_tiempo_internet"]
+            df.loc[mask_internet, "distancia_internet"] /
+            df.loc[mask_internet, "delta_tiempo_internet"]
     )
+    tope_velocidad = 1000.0
 
     df["velocidad_local"] = (
         df["velocidad_local"]
-        .replace([np.inf, -np.inf], 0)
+        .replace(np.inf, tope_velocidad)
+        .replace(-np.inf, 0)
         .fillna(0)
+        .clip(upper=tope_velocidad)
     )
 
     df["velocidad_internet"] = (
         df["velocidad_internet"]
-        .replace([np.inf, -np.inf], 0)
+        .replace(np.inf, tope_velocidad)
+        .replace(-np.inf, 0)
         .fillna(0)
+        .clip(upper=tope_velocidad)
     )
 
     df.drop(columns=["unix_time_prev"], inplace=True)
