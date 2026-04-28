@@ -11,14 +11,14 @@ data=pd.concat([data_train, data_test], ignore_index=True)
 #print(data.head())
 
 # Definir las que NO queremos considerando id y variables que no tengan sentido utilizar en base al EDA
-cols_a_eliminar = ['Unnamed: 0', 'cc_num', 'unix_time',"is_fraud","zip"]
-cols_a_eliminar2 = ["trans_num","trans_date_trans_time"]
+#cols_a_eliminar = ['Unnamed: 0', 'cc_num', 'unix_time',"is_fraud","zip"]
+#cols_a_eliminar2 = ["trans_num","trans_date_trans_time"]
 
 # Crear una lista con el nombre de las variables categóricas
-cat_columns = data.select_dtypes(include=['object', 'string']).drop(columns=cols_a_eliminar2,errors="ignore").columns
+#cat_columns = data.select_dtypes(include=['object', 'string']).drop(columns=cols_a_eliminar2,errors="ignore").columns
 
 # Creamos la lista de numéricas excluyendo las de arriba
-num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
+#num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
 
 # EJECUTAR ANÁLISIS DEL DATASET
 
@@ -42,7 +42,10 @@ tarjetas_por_persona = (
 tarjetas_por_persona.columns = ['persona_id', 'cantidad_tarjetas']
 
 print("\nMáximo número de tarjetas por persona:")
-print(tarjetas_por_persona["cantidad_tarjetas"].max())
+#print(tarjetas_por_persona["cantidad_tarjetas"].max())
+
+print("\nRegistros unicos por variable:")
+print(data.nunique())
 
 #  Calcular el mínimo y el máximo de las fechas
 
@@ -149,6 +152,7 @@ print("Análisis Univariado")
 
 data = distancia_entre_comercios(data)
 data = calcular_velocidad(data)
+data = distancia_cliente_comercio(data)
 
 print("\n" + "="*60)
 print("\nÚltimos 3 casos INTERNET:")
@@ -203,8 +207,8 @@ print("\n" + "="*60)
 print("Cálculo de anomalías por categoría (tasa de habitualidad)")
 try:
     data["tasa_categoria"] = calcular_anomaliaencategoria(data)
-    print("3 anomalías en categoría")
-    print(data["tasa_categoria"].head(3))
+    print("Ultimas 3 anomalías en categoría")
+    print(data["tasa_categoria"].tail(3))
 except Exception as e:
     print(f"Error al calcular la anomalía en categoría: {e}")
 
@@ -216,6 +220,17 @@ try:
 except Exception as e:
     print(f"Error al calcular si es nuevo o no: {e}")
 
+print("\n" + "="*60)
+print("Distancia cliente-comercio")
+print(
+    data[[
+        "cc_num",
+        "d_cliente_comercio_loc",
+        "d_cliente_comercio_int"
+    ]]
+    .head(3)
+    .to_string()
+)
 #TABLAS SIN UNSO ACTUALMENTE PQ NO SE HAN AÑADIDO LAS NUEVAS
 
 # Definir categorías online

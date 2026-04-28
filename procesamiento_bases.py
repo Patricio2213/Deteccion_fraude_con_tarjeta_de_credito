@@ -31,208 +31,316 @@ def balance_clases(df, columna_objetivo='is_fraud'):
 #-------------------------------------------------------------------
 #DITANCIA
 
-def haversine(lat1, lon1, lat2, lon2):
-    r = 6371  # km
+import numpy as np
+import pandas as pd
 
-    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+
+def haversine_vec(lat1, lon1, lat2, lon2):
+    r = 6371
+
+    lat1 = np.radians(lat1)
+    lon1 = np.radians(lon1)
+    lat2 = np.radians(lat2)
+    lon2 = np.radians(lon2)
 
     dlat = lat2 - lat1
     dlon = lon2 - lon1
 
-    a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2
+    a = (
+        np.sin(dlat / 2) ** 2 +
+        np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    )
+
     c = 2 * np.arcsin(np.sqrt(a))
 
     return r * c
 
-def distancia_entre_comercios(df):
 
-    # categorías consideradas como compras online
+def distancia_entre_comercios(df):
+    df = df.copy()
+    df.columns = df.columns.astype(str).str.strip()
+
+    columnas_necesarias = [
+        "cc_num", "unix_time", "category",
+        "merch_lat", "merch_long", "lat", "long"
+    ]
+
+    faltantes = [c for c in columnas_necesarias if c not in df.columns]
+
+    if faltantes:
+        raise ValueError(
+            f"Faltan columnas para distancia: {faltantes}. "
+            f"Columnas disponibles: {df.columns.tolist()}"
+        )
+
     categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 
-    # copia el dataframe para no modificar el original
-    df = df.copy()
+    df["_orden_original"] = np.arange(len(df))
 
-    # guarda el orden original de las filas
-    orden_original = df.index
+    df["unix_time"] = pd.to_numeric(df["unix_time"], errors="coerce")
 
-    # ordena las transacciones por tarjeta y tiempo en orden ascendente
+    for col in ["lat", "long", "merch_lat", "merch_long"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    df = df.dropna(subset=["cc_num", "unix_time"]).copy()
+
     df = df.sort_values(["cc_num", "unix_time"]).copy()
 
-    # crea columnas de salida
+    df["es_online"] = df["category"].isin(categorias_net).astype(int)
+
     df["distancia_local"] = 0.0
     df["distancia_internet"] = 0.0
-
-    # flags para identificar cuándo se usó el punto ancla cliente → comercio
     df["is_first_local"] = 0
     df["is_first_internet"] = 0
 
-    # función que procesa cada tarjeta por separado
-    def procesar_tarjeta(grupo):
+    # =========================
+    # COMPRAS LOCALES
+    # =========================
+    mask_local = df["es_online"] == 0
 
-        # última compra local registrada para esa tarjeta
-        last_local = None
+    prev_lat_local = (
+        df.loc[mask_local]
+        .groupby("cc_num")["merch_lat"]
+        .shift(1)
+    )
 
-        # última compra online registrada para esa tarjeta
-        last_online = None
+    prev_lon_local = (
+        df.loc[mask_local]
+        .groupby("cc_num")["merch_long"]
+        .shift(1)
+    )
 
-        # listas para guardar resultados
-        resultados_local = []
-        resultados_online = []
-        flags_first_local = []
-        flags_first_internet = []
+    idx_local = df.loc[mask_local].index
 
-        # recorre cada transacción de la tarjeta
-        for _, row in grupo.iterrows():
+    first_local = prev_lat_local.isna()
 
-            # determina si la compra actual es online
-            actual_online = row["category"] in categorias_net
+    df.loc[idx_local, "is_first_local"] = first_local.astype(int).values
 
-            # coordenadas del comercio actual
-            lat_c = row["merch_lat"]
-            lon_c = row["merch_long"]
+    distancia_local = np.where(
+        first_local,
+        haversine_vec(
+            df.loc[idx_local, "lat"],
+            df.loc[idx_local, "long"],
+            df.loc[idx_local, "merch_lat"],
+            df.loc[idx_local, "merch_long"]
+        ),
+        haversine_vec(
+            prev_lat_local,
+            prev_lon_local,
+            df.loc[idx_local, "merch_lat"],
+            df.loc[idx_local, "merch_long"]
+        )
+    )
 
-            # coordenadas del cliente / punto ancla
-            lat_cliente = row["lat"]
-            lon_cliente = row["long"]
+    df.loc[idx_local, "distancia_local"] = distancia_local
 
-            # caso compra online
-            if actual_online:
+    # =========================
+    # COMPRAS INTERNET
+    # =========================
+    mask_online = df["es_online"] == 1
 
-                # si existe una compra online previa
-                if last_online is not None:
-                    lat_prev, lon_prev = last_online
-                    dist = haversine(lat_prev, lon_prev, lat_c, lon_c)
-                    flag_first_online = 0
+    prev_lat_online = (
+        df.loc[mask_online]
+        .groupby("cc_num")["merch_lat"]
+        .shift(1)
+    )
 
-                # si no existe compra online previa, usa punto ancla
-                else:
-                    dist = haversine(lat_cliente, lon_cliente, lat_c, lon_c)
-                    flag_first_online = 1
+    prev_lon_online = (
+        df.loc[mask_online]
+        .groupby("cc_num")["merch_long"]
+        .shift(1)
+    )
 
-                resultados_local.append(0.0)
-                resultados_online.append(dist)
+    idx_online = df.loc[mask_online].index
 
-                flags_first_local.append(0)
-                flags_first_internet.append(flag_first_online)
+    first_online = prev_lat_online.isna()
 
-                # actualiza última compra online
-                last_online = (lat_c, lon_c)
+    df.loc[idx_online, "is_first_internet"] = first_online.astype(int).values
 
-            # caso compra local
-            else:
+    distancia_online = np.where(
+        first_online,
+        haversine_vec(
+            df.loc[idx_online, "lat"],
+            df.loc[idx_online, "long"],
+            df.loc[idx_online, "merch_lat"],
+            df.loc[idx_online, "merch_long"]
+        ),
+        haversine_vec(
+            prev_lat_online,
+            prev_lon_online,
+            df.loc[idx_online, "merch_lat"],
+            df.loc[idx_online, "merch_long"]
+        )
+    )
 
-                # si existe una compra local previa
-                if last_local is not None:
-                    lat_prev, lon_prev = last_local
-                    dist = haversine(lat_prev, lon_prev, lat_c, lon_c)
-                    flag_first_local = 0
+    df.loc[idx_online, "distancia_internet"] = distancia_online
 
-                # si no existe compra local previa, usa punto ancla
-                else:
-                    dist = haversine(lat_cliente, lon_cliente, lat_c, lon_c)
-                    flag_first_local = 1
+    for col in ["distancia_local", "distancia_internet"]:
+        df[col] = (
+            df[col]
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+            .clip(lower=0)
+        )
 
-                resultados_local.append(dist)
-                resultados_online.append(0.0)
+    df["is_first_local"] = df["is_first_local"].fillna(0).astype(int)
+    df["is_first_internet"] = df["is_first_internet"].fillna(0).astype(int)
 
-                flags_first_local.append(flag_first_local)
-                flags_first_internet.append(0)
+    df = df.sort_values("_orden_original").drop(columns=["_orden_original", "es_online"])
 
-                # actualiza última compra local
-                last_local = (lat_c, lon_c)
-
-        # asigna resultados al grupo
-        grupo["distancia_local"] = resultados_local
-        grupo["distancia_internet"] = resultados_online
-        grupo["is_first_local"] = flags_first_local
-        grupo["is_first_internet"] = flags_first_internet
-
-        return grupo
-
-    # aplica la función a cada tarjeta
-    df = df.groupby("cc_num", group_keys=False).apply(procesar_tarjeta)
-
-    # evita posibles infinitos o nulos
-    df["distancia_local"] = df["distancia_local"].replace([np.inf, -np.inf], 0).fillna(0)
-    df["distancia_internet"] = df["distancia_internet"].replace([np.inf, -np.inf], 0).fillna(0)
-
-    # devuelve el dataframe en el orden original
-    return df.loc[orden_original]
+    return df
 
 
 def calcular_velocidad(df):
     df = df.copy()
+    df.columns = df.columns.astype(str).str.strip()
 
-    orden_original = df.index
+    columnas_necesarias = [
+        "cc_num",
+        "unix_time",
+        "distancia_local",
+        "distancia_internet",
+        "is_first_local",
+        "is_first_internet"
+    ]
+
+    faltantes = [c for c in columnas_necesarias if c not in df.columns]
+
+    if faltantes:
+        raise ValueError(
+            f"Faltan columnas para velocidad: {faltantes}. "
+            f"Columnas disponibles: {df.columns.tolist()}"
+        )
+
+    df["_orden_original"] = np.arange(len(df))
+
+    df["unix_time"] = pd.to_numeric(df["unix_time"], errors="coerce")
+
+    df = df.dropna(subset=["cc_num", "unix_time"]).copy()
 
     df = df.sort_values(["cc_num", "unix_time"]).copy()
 
     df["unix_time_prev"] = df.groupby("cc_num")["unix_time"].shift(1)
 
-    df["is_first_buy"] = df["unix_time_prev"].isna().astype(int)
+    df["delta_tiempo_hours"] = (
+        df["unix_time"] - df["unix_time_prev"]
+    ) / 3600
 
     df["delta_tiempo_hours"] = (
-                                       df["unix_time"] - df["unix_time_prev"]
-                               ) / 3600
-
-    df["delta_tiempo_hours"] = df["delta_tiempo_hours"].fillna(0)
+        df["delta_tiempo_hours"]
+        .replace([np.inf, -np.inf], 0)
+        .fillna(0)
+    )
 
     df.loc[df["delta_tiempo_hours"] < 0, "delta_tiempo_hours"] = 0
 
+    df["is_first_buy"] = df["unix_time_prev"].isna().astype(int)
+
     df["delta_tiempo_local"] = 0.0
     df["delta_tiempo_internet"] = 0.0
-
-    mask_tiempo_valido = df["delta_tiempo_horas"] > 0
-
-    mask_local = (
-            (df["distancia_local"] > 0) &
-            (df["is_first_local"] == 0) &
-            mask_tiempo_valido
-    )
-
-    mask_internet = (
-            (df["distancia_internet"] > 0) &
-            (df["is_first_internet"] == 0) &
-            mask_tiempo_valido
-    )
-
-    df.loc[mask_local, "delta_tiempo_local"] = df.loc[mask_local, "delta_tiempo_horas"]
-
-    df.loc[mask_internet, "delta_tiempo_internet"] = df.loc[mask_internet, "delta_tiempo_horas"]
-
     df["velocidad_local"] = 0.0
     df["velocidad_internet"] = 0.0
 
+    mask_local = (
+        (df["distancia_local"] > 0) &
+        (df["is_first_local"] == 0) &
+        (df["delta_tiempo_hours"] > 0)
+    )
+
+    mask_online = (
+        (df["distancia_internet"] > 0) &
+        (df["is_first_internet"] == 0) &
+        (df["delta_tiempo_hours"] > 0)
+    )
+
+    df.loc[mask_local, "delta_tiempo_local"] = df.loc[mask_local, "delta_tiempo_hours"]
+    df.loc[mask_online, "delta_tiempo_internet"] = df.loc[mask_online, "delta_tiempo_hours"]
+
     df.loc[mask_local, "velocidad_local"] = (
-            df.loc[mask_local, "distancia_local"] /
-            df.loc[mask_local, "delta_tiempo_local"]
+        df.loc[mask_local, "distancia_local"] /
+        df.loc[mask_local, "delta_tiempo_local"]
     )
 
-    df.loc[mask_internet, "velocidad_internet"] = (
-            df.loc[mask_internet, "distancia_internet"] /
-            df.loc[mask_internet, "delta_tiempo_internet"]
+    df.loc[mask_online, "velocidad_internet"] = (
+        df.loc[mask_online, "distancia_internet"] /
+        df.loc[mask_online, "delta_tiempo_internet"]
     )
-    tope_velocidad = 1000.0
 
-    df["velocidad_local"] = (
-        df["velocidad_local"]
-        .replace(np.inf, tope_velocidad)
-        .replace(-np.inf, 0)
+    tope_velocidad = 1000
+
+    for col in ["velocidad_local", "velocidad_internet"]:
+        df[col] = (
+            df[col]
+            .replace([np.inf, -np.inf], 0)
+            .fillna(0)
+            .clip(lower=0, upper=tope_velocidad)
+        )
+
+    df = df.drop(columns=["unix_time_prev"])
+
+    df = df.sort_values("_orden_original").drop(columns="_orden_original")
+
+    return df
+
+def distancia_cliente_comercio(df):
+    """
+    Calcula la distancia entre la ubicación del cliente y el comercio
+    de cada transacción.
+
+    Crea:
+    - d_cliente_comercio_loc: distancia cliente-comercio en compras locales
+    - d_cliente_comercio_int: distancia cliente-comercio en compras internet
+    """
+
+    df = df.copy()
+    df.columns = df.columns.astype(str).str.strip()
+
+    columnas_necesarias = [
+        "category",
+        "lat",
+        "long",
+        "merch_lat",
+        "merch_long"
+    ]
+
+    faltantes = [c for c in columnas_necesarias if c not in df.columns]
+
+    if faltantes:
+        raise ValueError(
+            f"Faltan columnas para calcular distancia cliente-comercio: {faltantes}. "
+            f"Columnas disponibles: {df.columns.tolist()}"
+        )
+
+    categorias_net = ["grocery_net", "misc_net", "shopping_net"]
+
+    for col in ["lat", "long", "merch_lat", "merch_long"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    df["es_online"] = df["category"].isin(categorias_net).astype(int)
+
+    distancia = haversine_vec(
+        df["lat"],
+        df["long"],
+        df["merch_lat"],
+        df["merch_long"]
+    )
+
+    distancia = (
+        pd.Series(distancia, index=df.index)
+        .replace([np.inf, -np.inf], 0)
         .fillna(0)
-        .clip(upper=tope_velocidad)
+        .clip(lower=0)
     )
 
-    df["velocidad_internet"] = (
-        df["velocidad_internet"]
-        .replace(np.inf, tope_velocidad)
-        .replace(-np.inf, 0)
-        .fillna(0)
-        .clip(upper=tope_velocidad)
-    )
+    df["d_cliente_comercio_loc"] = 0.0
+    df["d_cliente_comercio_int"] = 0.0
 
-    df.drop(columns=["unix_time_prev"], inplace=True)
+    df.loc[df["es_online"] == 0, "d_cliente_comercio_loc"] = distancia[df["es_online"] == 0]
+    df.loc[df["es_online"] == 1, "d_cliente_comercio_int"] = distancia[df["es_online"] == 1]
 
-    return df.loc[orden_original]
+    df = df.drop(columns=["es_online"])
+
+    return df
 
 def zcore_monto(data):
     # 1. prom por tarjeta
