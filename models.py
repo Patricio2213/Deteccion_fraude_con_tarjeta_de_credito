@@ -1,47 +1,80 @@
-from sklearn.pipeline import Pipeline
+import torch
+import torch.nn as nn
 from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
-import torch.nn as nn
+from sklearn.ensemble import IsolationForest
+from sklearn.neighbors import LocalOutlierFactor
 
-# --- 1. Regresión Logística (Baseline) ---
-def get_logistic_pipeline(preprocessor):
-    return Pipeline(steps=[
-        ('preprocessor', preprocessor),
-        ('classifier', LogisticRegression(
-            penalty='l2',
-            class_weight='balanced',
-            max_iter=1000,
-            random_state=42
-        ))
-    ])
 
-# --- 2. XGBoost (Estado del Arte) ---
-def get_xgboost_pipeline(preprocessor, scale_pos_weight):
-    return Pipeline(steps=[
-        ('preprocessor', preprocessor),
-        ('classifier', XGBClassifier(
-            n_estimators=200,
-            max_depth=5,
-            learning_rate=0.1,
-            scale_pos_weight=scale_pos_weight, # Manejo de desbalanceo
-            eval_metric='logloss',
-            random_state=42
-        ))
-    ])
+# --- FAMILIA 1: ENFOQUE SUPERVISADO ---
 
-# --- 3. PyTorch MLP (Deep Learning) ---
-class FraudMLP(nn.Module):
+def get_logistic_regression():
+    # Eliminamos 'penalty' explícito para evitar avisos de deprecación.
+    # Por defecto usa L2 (Ridge). C=1.0 es el estándar.
+    return LogisticRegression(C=1.0, solver='liblinear')  # @ajuste: C menor aumenta regularización
+
+
+def get_xgboost():
+    return XGBClassifier(
+        n_estimators=100,  # @ajuste: n_estimadores (cantidad de árboles)
+        max_depth=6,  # @ajuste: profundidad (evita sobreajuste si es bajo)
+        learning_rate=0.1,  # @ajuste: tasa de aprendizaje (eta)
+        eval_metric='logloss'  # Métrica interna para clasificación binaria
+    )
+
+
+# MLP: Red Neuronal para Clasificación
+class MLP(nn.Module):
     def __init__(self, input_dim):
-        super(FraudMLP, self).__init__()
-        self.red = nn.Sequential(
-            nn.Linear(input_dim, 64),
+        super(MLP, self).__init__()
+        self.network = nn.Sequential(
+            nn.Linear(input_dim, 32),  # @ajuste: neuronas capa 1
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, 32),
+            nn.Linear(32, 16),  # @ajuste: neuronas capa 2
             nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(32, 1)
+            nn.Linear(16, 1),
+            nn.Sigmoid()  # Obligatorio para probabilidad 0 a 1
         )
 
     def forward(self, x):
-        return self.red(x)
+        return self.network(x)
+
+
+# --- FAMILIA 2: ENFOQUE NO SUPERVISADO ---
+
+def get_isolation_forest():
+    return IsolationForest(
+        n_estimators=100,
+        contamination=0.01,  # @ajuste: % de fraude esperado en la base
+        random_state=42
+    )
+
+
+def get_lof():
+    return LocalOutlierFactor(
+        n_neighbors=20,  # @ajuste: cantidad de vecinos para medir densidad
+        novelty=True  # Permite usar el método .predict() en Test
+    )
+
+
+# Autoencoder en PyTorch
+class Autoencoder(nn.Module):
+    def __init__(self, input_dim):
+        super(Autoencoder, self).__init__()
+        # Encoder
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, 16),
+            nn.ReLU(),
+            nn.Linear(16, 8)
+        )
+        # Decoder
+        self.decoder = nn.Sequential(
+            nn.Linear(8, 16),
+            nn.ReLU(),
+            nn.Linear(16, input_dim)
+        )
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x

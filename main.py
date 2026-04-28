@@ -1,4 +1,5 @@
 #Carga de funciones
+import torch.optim as optim
 from Subida_data import *
 from procesamiento_bases import *
 from EDA import *
@@ -11,14 +12,14 @@ data=pd.concat([data_train, data_test], ignore_index=True)
 #print(data.head())
 
 # Definir las que NO queremos considerando id y variables que no tengan sentido utilizar en base al EDA
-#cols_a_eliminar = ['Unnamed: 0', 'cc_num', 'unix_time',"is_fraud","zip"]
-#cols_a_eliminar2 = ["trans_num","trans_date_trans_time"]
+cols_a_eliminar = ['Unnamed: 0', 'cc_num', 'unix_time',"is_fraud","zip"]
+cols_a_eliminar2 = ["trans_num","trans_date_trans_time"]
 
 # Crear una lista con el nombre de las variables categóricas
-#cat_columns = data.select_dtypes(include=['object', 'string']).drop(columns=cols_a_eliminar2,errors="ignore").columns
+cat_columns = data.select_dtypes(include=['object', 'string']).drop(columns=cols_a_eliminar2,errors="ignore").columns
 
 # Creamos la lista de numéricas excluyendo las de arriba
-#num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
+num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
 
 # EJECUTAR ANÁLISIS DEL DATASET
 
@@ -373,3 +374,120 @@ try:
     )
 except Exception as e:
     print(f"Error al calcular delta_tiempo_log: {e}")
+
+#--------------------------------------------------------
+#MODELOS
+#--------------------------------------------------------
+
+
+data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
+
+# 2. DEFINICIÓN DE VENTANAS TEMPORALES (Validación Temporal)
+fecha_entreno_inicio = '2019-01-01 00:00:18'
+fecha_entreno_fin    = '2020-06-21 12:13:37'
+fecha_prueba_inicio  = '2020-06-21 12:14:25'
+fecha_prueba_fin     = '2020-12-31 23:59:34'
+
+train_df = data[(data['trans_date_trans_time'] >= fecha_entreno_inicio) &
+              (data['trans_date_trans_time'] <= fecha_entreno_fin)].copy()
+test_df  = data[(data['trans_date_trans_time'] >= fecha_prueba_inicio) &
+              (data['trans_date_trans_time'] <= fecha_prueba_fin)].copy()
+
+print(f"📊 Entrenamiento: {train_df.shape[0]} registros")
+print(f"📊 Prueba: {test_df.shape[0]} registros")
+
+# --- 3. INGENIERÍA DE VARIABLES TEMPORALES ---
+for df_temp in [train_df, test_df]:
+    df_temp['hour'] = df_temp['trans_date_trans_time'].dt.hour
+    df_temp['day_of_week'] = df_temp['trans_date_trans_time'].dt.dayofweek
+    df_temp['is_weekend'] = df_temp['day_of_week'].apply(lambda x: 1 if x >= 5 else 0)
+
+# 4. SELECCIÓN DE VARIABLES
+target = 'is_fraud'
+columnas_drop = [target, "trans_date_trans_time","street","first","last","merchant","city","dob","persona_id"]
+
+X_train = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
+y_train = train_df[target]
+X_test  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
+y_test  = test_df[target]
+
+cat_columns = [col for col in cat_columns if col in X_train.columns]
+# --- 5. PREPROCESAMIENTO (ColumnTransformer) ---
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), num_columns),
+        ('cat', OneHotEncoder(handle_unknown='ignore'), cat_columns)
+    ])
+
+X_train_scaled = preprocessor.fit_transform(X_train)
+X_test_scaled = preprocessor.transform(X_test)
+
+# Convertir a array denso si el encoder devuelve matriz dispersa (necesario para DL)
+if hasattr(X_train_scaled, "toarray"):
+    X_train_scaled = X_train_scaled.toarray()
+    X_test_scaled = X_test_scaled.toarray()
+
+# --- 6. ENTRENAMIENTO MODELOS RÁPIDOS (Sklearn/XGBoost) ---
+print("\n--- Entrenando Modelos de Respuesta Rápida ---")
+
+# Supervisados
+modelos_sup = {
+    "Regresión Logística": get_logistic_regression(),
+    "XGBoost": get_xgboost()
+}
+for nombre, model in modelos_sup.items():
+    model.fit(X_train_scaled, y_train)
+    print(f"✅ {nombre} completado.")
+
+# No Supervisados
+modelos_no_sup = {
+    "Isolation Forest": get_isolation_forest(),
+    "LOF": get_lof()
+}
+for nombre, model in modelos_no_sup.items():
+    model.fit(X_train_scaled)
+    print(f"✅ {nombre} completado.")
+
+# --- 7. ENTRENAMIENTO MODELOS LENTOS (Deep Learning) ---
+print("\n--- Iniciando Entrenamiento de Deep Learning (Esto tardará más) ---")
+
+# Preparación de Tensores
+X_train_tensor = torch.FloatTensor(X_train_scaled)
+y_train_tensor = torch.FloatTensor(y_train.values).view(-1, 1)
+input_dim = X_train_tensor.shape[1]
+
+# A. ENTRENAMIENTO MLP
+print(f"\n🚀 Entrenando MLP (Dimensión entrada: {input_dim})...")
+mlp_model = MLP(input_dim)
+criterion_mlp = nn.BCELoss()
+optimizer_mlp = optim.Adam(mlp_model.parameters(), lr=0.001)
+
+for epoch in range(50): # @ajuste: épocas
+    mlp_model.train()
+    optimizer_mlp.zero_grad()
+    outputs = mlp_model(X_train_tensor)
+    loss = criterion_mlp(outputs, y_train_tensor)
+    loss.backward()
+    optimizer_mlp.step()
+    if (epoch + 1) % 10 == 0:
+        print(f"Época [{epoch+1}/50], Loss: {loss.item():.4f}")
+print("✅ Entrenamiento MLP completado.")
+
+# B. ENTRENAMIENTO AUTOENCODER
+print(f"\n🚀 Entrenando Autoencoder (Detección de Anomalías)...")
+ae_model = Autoencoder(input_dim)
+criterion_ae = nn.MSELoss()
+optimizer_ae = optim.Adam(ae_model.parameters(), lr=0.001)
+
+for epoch in range(50):
+    ae_model.train()
+    optimizer_ae.zero_grad()
+    reconstruction = ae_model(X_train_tensor)
+    loss = criterion_ae(reconstruction, X_train_tensor) # Compara con la entrada
+    loss.backward()
+    optimizer_ae.step()
+    if (epoch + 1) % 10 == 0:
+        print(f"Época [{epoch+1}/50], Loss: {loss.item():.4f}")
+print("✅ Entrenamiento Autoencoder completado.")
+
+print("\n--- Proceso finalizado con éxito ---")
