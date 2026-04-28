@@ -439,14 +439,22 @@ for nombre, model in modelos_sup.items():
     model.fit(X_train_scaled, y_train)
     print(f"✅ {nombre} completado.")
 
-# No Supervisados
-modelos_no_sup = {
-    "Isolation Forest": get_isolation_forest(),
-    "LOF": get_lof()
-}
-for nombre, model in modelos_no_sup.items():
-    model.fit(X_train_scaled)
-    print(f"✅ {nombre} completado.")
+# --- 8. Modelos No Supervisados (Set Completo) ---
+print("\n--- Entrenando Familias No Supervisadas ---")
+
+# Entrenamos Isolation Forest (Rápido, soporta el millón de datos)
+print("🚀 Entrenando Isolation Forest...")
+iso_forest = get_isolation_forest()
+iso_forest.fit(X_train_scaled)
+print("✅ Isolation Forest completado.")
+
+
+#print("⏳ Entrenando LOF (Set Completo - ESTO PUEDE TARDAR HORAS)...")
+#lof_model = get_lof()
+#lof_model.fit(X_train_scaled)
+#print("✅ LOF completado.")
+
+
 
 # --- 7. ENTRENAMIENTO MODELOS LENTOS (Deep Learning) ---
 print("\n--- Iniciando Entrenamiento de Deep Learning (Esto tardará más) ---")

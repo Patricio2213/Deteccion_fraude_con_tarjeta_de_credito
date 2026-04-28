@@ -52,8 +52,9 @@ def get_isolation_forest():
 
 def get_lof():
     return LocalOutlierFactor(
-        n_neighbors=20,  # @ajuste: cantidad de vecinos para medir densidad
-        novelty=True  # Permite usar el método .predict() en Test
+        n_neighbors=20,
+        novelty=True,
+        n_jobs=-1  # Esto acelera el proceso usando todos tus núcleos
     )
 
 
