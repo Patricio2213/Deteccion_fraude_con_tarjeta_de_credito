@@ -149,31 +149,33 @@ def make_barplot(dataframe, cat_var,top):
     plt.figure(figsize=(16, 9))
 
     # Crear el diagrama de barras
-    my_fig = percentages.plot(kind='bar')
+    my_fig = percentages.plot(kind='barh')
 
     # Añadir porcentajes a las barras
     for i, valor in enumerate(percentages):
-        my_fig.text(i, valor + 0.2, f"{valor:.2f}%", fontsize=16, va='center', ha='center',
+        my_fig.text( valor + 0.5,i, f"{valor:.2f}%", fontsize=16, va='center', ha='center',
                     color='black', weight='bold')
 
     # Añadir títulos a los ejes
     #plt.title(f"Barplot" f" {cat_var}", fontsize=14)
-    plt.xlabel(cat_var)
-    plt.ylabel('Percentage (%)')
+    plt.ylabel(cat_var)
+    plt.xlabel('Percentage (%)')
 
     # Rotar las leyendas del eje x
     plt.xticks(rotation=45,ha="right")
     plt.ylim(0, percentages.max() + 5)
 
     # Controlar las lineas horizontales y verticales
-    my_fig.grid(axis='x', visible=False)
-    my_fig.grid(axis='y', visible=True)
+    my_fig.grid(axis='y', visible=False)
+    my_fig.grid(axis='x', visible=True)
     sns.set_style("whitegrid")
     # Guardar el gráfico usando el nombre de la variable analizada
     plt.savefig(f"barplot_{cat_var}.png", bbox_inches='tight', dpi=300)
     # Mostrar la figura
     plt.tight_layout()
     plt.show()
+
+
 
 def make_boxplot(dataframe, num_var, unit=''):
     # Tamaño de la figura
@@ -436,7 +438,7 @@ def graficar_temporalidad_fraude(df):
       # Calculamos la tasa agrupando por año
     tasa_anual = df_temp.groupby("año")["is_fraud"].mean() * 100
     sns.barplot(x=tasa_anual.index, y=tasa_anual.values, color="blue")
-    plt.title("Evolución Anual: ¿Está aumentando el fraude año a año?", fontsize=14)
+    #plt.title("Evolución Anual: ¿Está aumentando el fraude año a año?", fontsize=14)
     plt.ylabel("% de Fraude")
     plt.savefig("temp_1_anual.png", bbox_inches='tight')
     sns.set_style("whitegrid")
@@ -448,7 +450,7 @@ def graficar_temporalidad_fraude(df):
         # Calculamos la tasa agrupando por mes
     tasa_mensual = df_temp.groupby("mes")["is_fraud"].mean() * 100
     sns.barplot(x=tasa_mensual.index, y=tasa_mensual.values, color="green")
-    plt.title("Estacionalidad Mensual: ¿Hay meses más peligrosos?", fontsize=14)
+    #plt.title("Estacionalidad Mensual: ¿Hay meses más peligrosos?", fontsize=14)
     plt.xticks(range(1, 13), ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'])
     plt.ylabel("% de Fraude")
     plt.grid(alpha=0.3)
@@ -464,7 +466,7 @@ def graficar_temporalidad_fraude(df):
     tasa_hora_año["is_fraud"] *= 100
     colores_personalizados = {2019: "blue", 2020: "red"}
     sns.lineplot(data=tasa_hora_año, x="hora", y="is_fraud", hue="año", marker="o",palette=colores_personalizados)
-    plt.title("Reloj del Criminal: Comparativa por Años", fontsize=14)
+    #plt.title("Reloj del Criminal: Comparativa por Años", fontsize=14)
     plt.xlabel("Hora del Día")
     plt.ylabel("% de Fraude")
     plt.xticks(range(0, 24))

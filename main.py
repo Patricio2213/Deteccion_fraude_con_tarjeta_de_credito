@@ -115,7 +115,7 @@ print("Análisis Univariado")
   #  make_boxplot(data,num_var)
 
 #for cat_var in cat_columns:
- #   make_barplot(data,cat_var,top=15) #univariado
+#make_barplot(data,"category",top=20) #univariado
 
 #ANÁLISIS MULTIVARIADO
 
@@ -270,6 +270,46 @@ pd.set_option("display.max_columns", None)
 
 print(tabla_skew.to_string(index=False))
 
+print("\n" + "="*60)
+print("Análisis de Curtosis: Original vs Logaritmo (log1p)")
+
+# Seleccionar solo variables numéricas
+num_cols = data.select_dtypes(include="number").columns
+
+resultados_kurtosis = []
+
+for col in num_cols:
+    serie = data[col].dropna()
+
+    # Calcular Kurtosis original
+    kurt_original = serie.kurtosis()
+
+    # Calcular Kurtosis con logaritmo
+    if (serie >= 0).all():
+        kurt_log = np.log1p(serie).kurtosis()
+    else:
+        kurt_log = np.nan
+
+    resultados_kurtosis.append([col, kurt_original, kurt_log])
+
+# Crear DataFrame para la tabla de resultados
+tabla_kurtosis = pd.DataFrame(
+    resultados_kurtosis,
+    columns=["variable", "kurtosis_original", "kurtosis_log"]
+)
+
+# Ordenar por mayor curtosis original para identificar colas pesadas
+tabla_kurtosis = tabla_kurtosis.sort_values(by="kurtosis_original", ascending=False)
+
+# Configuración para mostrar toda la tabla
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+
+print(tabla_kurtosis.to_string(index=False))
+
+#-----------------------------------------------------------
+#NUEVAS VARIABLES
+#-----------------------------------------------------------
 print("\n" + "="*60)
 print("Logaritmo de amt")
 try:
