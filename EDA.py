@@ -245,13 +245,20 @@ def make_heat_map(dataframe, num_vars):
     plt.tight_layout()
     plt.show()
 
+def make_scatter_plot(df, num_vars):
+    """
+    Versión robusta: NO modifica df, NO filtra columnas,
+    crea una copia temporal solo con num_vars para el gráfico.
+    """
 
-def make_scatter_plot(dataframe, num_vars):
+    # Copia temporal SOLO para graficar (no afecta df original)
+    df_temp = df[num_vars].copy()
+
     # Tamaño de la figura
     plt.figure(figsize=(16, 9))
 
     # Generar la matriz de scatter plot
-    g = sns.pairplot(dataframe[num_vars], corner=False, diag_kind='kde')
+    g = sns.pairplot(df_temp, corner=False, diag_kind='kde')
 
     # Ajustar las etiquetas del eje y
     for ax in g.axes.flatten():
@@ -263,6 +270,7 @@ def make_scatter_plot(dataframe, num_vars):
     # Ajustar la figura para evitar traslape
     g.figure.tight_layout()
     sns.set_style("whitegrid")
+
     plt.show()
 
 def make_grouped_boxplots(dataframe, num_vars, cat_vars, type_plot='boxplot', unit=''):
