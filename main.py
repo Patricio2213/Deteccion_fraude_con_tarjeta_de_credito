@@ -1,5 +1,6 @@
 #Carga de funciones
-import torch.optim as optim
+import gc
+import statsmodels.api as sm
 from Subida_data import *
 from procesamiento_bases import *
 from EDA import *
@@ -105,6 +106,11 @@ print("\n" + "="*60)
 print("Balance de clases DATA_TEST(is_fraud)")
 print(balance_clases(data_test))#0.38%
 
+del data_test
+del data_train
+
+#forzar limpieza
+gc.collect()
 #Gráficos
 
 print("\n" + "="*60)
@@ -379,7 +385,7 @@ except Exception as e:
 #MODELOS
 #--------------------------------------------------------
 
-
+"""
 data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
 
 # 2. DEFINICIÓN DE VENTANAS TEMPORALES (Validación Temporal)
@@ -429,48 +435,86 @@ if hasattr(X_train_scaled, "toarray"):
 
 # --- 6. ENTRENAMIENTO MODELOS RÁPIDOS (Sklearn/XGBoost) ---
 print("\n--- Entrenando Modelos de Respuesta Rápida ---")
+# --- 7. MODELOS SUPERVISADOS (ESTADÍSTICA Y ML) ---
+print("\n--- Entrenando Modelos Supervisados ---")
 
-# Supervisados
-modelos_sup = {
-    "Regresión Logística": get_logistic_regression(),
-    "XGBoost": get_xgboost()
-}
-for nombre, model in modelos_sup.items():
-    model.fit(X_train_scaled, y_train)
-    print(f"✅ {nombre} completado.")
+# 1. LIMPIEZA INICIAL
+# Asegúrate de haber hecho 'del df1, df2' antes de llegar aquí
+gc.collect()
 
-# --- 8. Modelos No Supervisados (Set Completo) ---
+# A. REGRESIÓN LOGÍSTICA (SUMMARY ESTADÍSTICO)
+print("⏳ Ajustando Logit (Sin duplicación innecesaria)...")
+
+try:
+    # Creamos la columna de unos
+    ones_train = np.ones((X_train_scaled.shape[0], 1), dtype=X_train_scaled.dtype)
+
+    # Unimos para el summary. Esta es la ÚNICA copia permitida para Statsmodels.
+    X_train_stat = np.ascontiguousarray(np.hstack([ones_train, X_train_scaled]))
+
+    # Liberamos el vector de unos inmediatamente
+    del ones_train
+    gc.collect()
+
+    # Ajustamos con L-BFGS (Crucial para no generar una matriz Hessiana gigante en RAM)
+    logit_mod = sm.Logit(y_train, X_train_stat)
+    logit_res = logit_mod.fit(method='lbfgs', maxiter=100, disp=0)
+
+    print("\n=== SUMMARY DE REGRESIÓN LOGÍSTICA ===")
+    print(logit_res.summary())
+
+    # Evaluación de la Regresión
+    ones_test = np.ones((X_test_scaled.shape[0], 1), dtype=X_test_scaled.dtype)
+    X_test_stat = np.hstack([ones_test, X_test_scaled])
+    del ones_test
+
+    y_prob_logit = logit_res.predict(X_test_stat)
+    evaluar_modelo("Regresión Logística", y_test, y_prob_logit)
+
+    # LIMPIEZA TOTAL de las matrices de la regresión antes de seguir
+    del X_train_stat, X_test_stat, logit_mod
+    gc.collect()
+
+except MemoryError:
+    print("❌ Error de RAM: El sistema no soporta la matriz de 1.3M en float64.")
+    print("💡 Intenta: X_train_stat = sm.add_constant(X_train_scaled[:500000]) para el summary.")
+
+# B. OTROS SUPERVISADOS (XGBoost)
+# XGBoost es mucho más eficiente y usará la matriz X_train_scaled original
+print(f"\n🚀 Entrenando XGBoost...")
+xgb_model = get_xgboost()
+xgb_model.fit(X_train_scaled, y_train)
+y_prob_xgb = xgb_model.predict_proba(X_test_scaled)[:, 1]
+evaluar_modelo("XGBoost", y_test, y_prob_xgb)
+
+# --- 8. MODELOS NO SUPERVISADOS ---
 print("\n--- Entrenando Familias No Supervisadas ---")
-
-# Entrenamos Isolation Forest (Rápido, soporta el millón de datos)
-print("🚀 Entrenando Isolation Forest...")
 iso_forest = get_isolation_forest()
 iso_forest.fit(X_train_scaled)
-print("✅ Isolation Forest completado.")
 
+y_prob_iso = -iso_forest.decision_function(X_test_scaled)
+# Normalización rápida
+y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
+evaluar_modelo("Isolation Forest", y_test, y_prob_iso)
 
-#print("⏳ Entrenando LOF (Set Completo - ESTO PUEDE TARDAR HORAS)...")
-#lof_model = get_lof()
-#lof_model.fit(X_train_scaled)
-#print("✅ LOF completado.")
+# --- 9. DEEP LEARNING (MLP & AUTOENCODER) ---
+print("\n--- Entrenando Deep Learning ---")
+# PyTorch requiere float32 para ser eficiente.
+# Si le pasas float64, él creará una copia interna, duplicando tu RAM.
+# Para evitarlo, convertimos AQUÍ y borramos la original si es necesario.
 
-
-
-# --- 7. ENTRENAMIENTO MODELOS LENTOS (Deep Learning) ---
-print("\n--- Iniciando Entrenamiento de Deep Learning (Esto tardará más) ---")
-
-# Preparación de Tensores
-X_train_tensor = torch.FloatTensor(X_train_scaled)
-y_train_tensor = torch.FloatTensor(y_train.values).view(-1, 1)
+X_train_tensor = torch.from_numpy(X_train_scaled.astype('float32'))
+X_test_tensor = torch.from_numpy(X_test_scaled.astype('float32'))
+y_train_tensor = torch.FloatTensor(y_train.values.copy()).view(-1, 1)
 input_dim = X_train_tensor.shape[1]
 
-# A. ENTRENAMIENTO MLP
-print(f"\n🚀 Entrenando MLP (Dimensión entrada: {input_dim})...")
+# A. MLP
+print(f"🚀 Entrenando MLP...")
 mlp_model = MLP(input_dim)
-criterion_mlp = nn.BCELoss()
-optimizer_mlp = optim.Adam(mlp_model.parameters(), lr=0.001)
+criterion_mlp = torch.nn.BCELoss()
+optimizer_mlp = torch.optim.Adam(mlp_model.parameters(), lr=0.001)
 
-for epoch in range(50): # @ajuste: épocas
+for epoch in range(50):
     mlp_model.train()
     optimizer_mlp.zero_grad()
     outputs = mlp_model(X_train_tensor)
@@ -478,24 +522,35 @@ for epoch in range(50): # @ajuste: épocas
     loss.backward()
     optimizer_mlp.step()
     if (epoch + 1) % 10 == 0:
-        print(f"Época [{epoch+1}/50], Loss: {loss.item():.4f}")
-print("✅ Entrenamiento MLP completado.")
+        print(f"MLP - Época [{epoch + 1}/50], Loss: {loss.item():.4f}")
 
-# B. ENTRENAMIENTO AUTOENCODER
-print(f"\n🚀 Entrenando Autoencoder (Detección de Anomalías)...")
+mlp_model.eval()
+with torch.no_grad():
+    y_prob_mlp = mlp_model(X_test_tensor).numpy().flatten()
+    evaluar_modelo("MLP (Red Neuronal)", y_test, y_prob_mlp)
+
+# B. AUTOENCODER
+print(f"🚀 Entrenando Autoencoder...")
 ae_model = Autoencoder(input_dim)
-criterion_ae = nn.MSELoss()
-optimizer_ae = optim.Adam(ae_model.parameters(), lr=0.001)
+criterion_ae = torch.nn.MSELoss()
+optimizer_ae = torch.optim.Adam(ae_model.parameters(), lr=0.001)
 
 for epoch in range(50):
     ae_model.train()
     optimizer_ae.zero_grad()
     reconstruction = ae_model(X_train_tensor)
-    loss = criterion_ae(reconstruction, X_train_tensor) # Compara con la entrada
+    loss = criterion_ae(reconstruction, X_train_tensor)
     loss.backward()
     optimizer_ae.step()
     if (epoch + 1) % 10 == 0:
-        print(f"Época [{epoch+1}/50], Loss: {loss.item():.4f}")
-print("✅ Entrenamiento Autoencoder completado.")
+        print(f"Autoencoder - Época [{epoch + 1}/50], Loss: {loss.item():.4f}")
+
+ae_model.eval()
+with torch.no_grad():
+    reconst_test = ae_model(X_test_tensor)
+    mse_test = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1).numpy()
+    mse_test_norm = (mse_test - mse_test.min()) / (mse_test.max() - mse_test.min() + 1e-9)
+    evaluar_modelo("Autoencoder", y_test, mse_test_norm)
 
 print("\n--- Proceso finalizado con éxito ---")
+"""

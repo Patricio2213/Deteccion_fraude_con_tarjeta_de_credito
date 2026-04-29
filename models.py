@@ -4,7 +4,8 @@ from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
-
+from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, confusion_matrix
+import torch.optim as optim
 
 # --- FAMILIA 1: ENFOQUE SUPERVISADO ---
 
@@ -79,3 +80,31 @@ class Autoencoder(nn.Module):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
+
+
+def evaluar_modelo(nombre, y_real, y_prob):
+    # 1. Cálculos de Ranking (AUC)
+    roc_auc = roc_auc_score(y_real, y_prob)
+    precision, recall, _ = precision_recall_curve(y_real, y_prob)
+    pr_auc = auc(recall, precision)
+
+    # 2. Matriz de Confusión (Umbral estándar 0.5)
+    y_pred = (y_prob > 0.5).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_real, y_pred).ravel()
+
+    # 3. Impresión en consola (Lo que querías ver)
+    print(f"\n📊 RESULTADOS: {nombre}")
+    print(f"  - AUC-ROC: {roc_auc:.4f} | AUC-PR: {pr_auc:.4f}")
+    print(f"  - Matriz:  TP: {tp} | FP: {fp} | TN: {tn} | FN: {fn}")
+    print(f"  - Tasa Falsos Positivos (FPR): {fp / (fp + tn):.4%}")
+
+    # 4. RETURNO (Para poder guardar los resultados)
+    return {
+        "nombre": nombre,
+        "auc_roc": roc_auc,
+        "auc_pr": pr_auc,
+        "tp": tp,
+        "fp": fp,
+        "tn": tn,
+        "fn": fn
+    }
