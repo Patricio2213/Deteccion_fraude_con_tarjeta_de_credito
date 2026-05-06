@@ -1,6 +1,5 @@
 #Carga de funciones
 import gc
-import statsmodels.api as sm
 from Subida_data import *
 from procesamiento_bases import *
 from EDA import *
@@ -22,6 +21,7 @@ cat_columns = data.select_dtypes(include=['object', 'string']).drop(columns=cols
 # Creamos la lista de numéricas excluyendo las de arriba
 num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
 
+"""
 # EJECUTAR ANÁLISIS DEL DATASET
 
 #  Identificador único de persona
@@ -105,12 +105,13 @@ print(balance_clases(data_train)) #0.58%
 print("\n" + "="*60)
 print("Balance de clases DATA_TEST(is_fraud)")
 print(balance_clases(data_test))#0.38%
-
+"""
 del data_test
 del data_train
 
 #forzar limpieza
 gc.collect()
+"""
 #Gráficos
 
 print("\n" + "="*60)
@@ -154,13 +155,13 @@ print("Análisis Univariado")
 
 #make_stacked_barplots(data, cat_columns, top=10)#multivariado #NO APORTA MUCHA INFORMACIÓN DADO EL DESBALANCE
 
-
+"""
 # Creación de nuevas variables
 
 data = distancia_entre_comercios(data)
 data = calcular_velocidad(data)
 data = distancia_cliente_comercio(data)
-
+"""
 print("\n" + "="*60)
 print("\nÚltimos 3 casos INTERNET:")
 print(
@@ -238,14 +239,15 @@ print(
     .head(3)
     .to_string()
 )
+"""
 #TABLAS SIN UNSO ACTUALMENTE PQ NO SE HAN AÑADIDO LAS NUEVAS
 
 # Definir categorías online
-#categorias_net = ["grocery_net", "misc_net", "shopping_net"]
+categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 
-# Creo una variable: ES ONLINE (1) VS FÍSICO (0)
+ #Creo una variable: ES ONLINE (1) VS FÍSICO (0)
 
-#data["es_online"] = data["category"].isin(categorias_net).astype(int)
+data["es_online"] = data["category"].isin(categorias_net).astype(int)
 
 #print("Conteo de compras online vs físicas:")
 #print(data["es_online"].value_counts())
@@ -254,7 +256,7 @@ print(
 #print(data["es_online"].value_counts(normalize=True) * 100)
 
 #grafico_tasa_por_variable(data, "es_online")
-
+"""
 print("\n" + "="*60)
 print("Investiguemos que variables podrían necesitar logaritmo")
 
@@ -328,7 +330,7 @@ pd.set_option("display.max_rows", None)
 pd.set_option("display.max_columns", None)
 
 print(tabla_kurtosis.to_string(index=False))
-
+"""
 #-----------------------------------------------------------
 #NUEVAS VARIABLES
 #-----------------------------------------------------------
@@ -380,177 +382,171 @@ try:
     )
 except Exception as e:
     print(f"Error al calcular delta_tiempo_log: {e}")
+#--------------------------------------------------------
+#EDA NUEVAS VARIABLES
+#--------------------------------------------------------
+num_nuevas=["delta_tiempo_log_local","delta_tiempo_log_internet","city_pop_log","amt_log","velocidad_log_local","velocidad_log_internet","distancia_local","distancia_internet","d_cliente_comercio_int","d_cliente_comercio_loc","edad","tasa_categoria","velocidad_internet","velocidad_local","delta_tiempo_local","delta_tiempo_internet"]
+cat_nueva=["es_nuevo","es_online","is_first_internet","is_first_local"]
+"""
+graficar_densidad(data,num_nuevas)
+for num_var in num_nuevas:
+    make_boxplot(data,num_var)
+"""
 
+
+
+#ANÁLISIS MULTIVARIADO
+
+#boxplots_con_tabla(data, num_nuevas,target="is_fraud")
 #--------------------------------------------------------
 #MODELOS
 #--------------------------------------------------------
 
-"""
+
+# --- 1. MUESTREO Y PREPARACIÓN ---
+# ---  FILTRADO TEMPORAL Y MUESTREO ÚNICO (Al inicio de todo) ---
 data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
 
-# 2. DEFINICIÓN DE VENTANAS TEMPORALES (Validación Temporal)
 fecha_entreno_inicio = '2019-01-01 00:00:18'
 fecha_entreno_fin    = '2020-06-21 12:13:37'
 fecha_prueba_inicio  = '2020-06-21 12:14:25'
 fecha_prueba_fin     = '2020-12-31 23:59:34'
 
-train_df = data[(data['trans_date_trans_time'] >= fecha_entreno_inicio) &
-              (data['trans_date_trans_time'] <= fecha_entreno_fin)].copy()
-test_df  = data[(data['trans_date_trans_time'] >= fecha_prueba_inicio) &
-              (data['trans_date_trans_time'] <= fecha_prueba_fin)].copy()
+# Filtramos los universos completos por fecha una sola vez
+full_train = data[(data['trans_date_trans_time'] >= fecha_entreno_inicio) &
+                 (data['trans_date_trans_time'] <= fecha_entreno_fin)]
+full_test = data[(data['trans_date_trans_time'] >= fecha_prueba_inicio) &
+                (data['trans_date_trans_time'] <= fecha_prueba_fin)]
 
-print(f"📊 Entrenamiento: {train_df.shape[0]} registros")
-print(f"📊 Prueba: {test_df.shape[0]} registros")
+# MUESTREO ÚNICO: Aquí definimos el set que usarán todos los modelos
+n_train = 160000
+n_test  = 40000
 
-# --- 3. INGENIERÍA DE VARIABLES TEMPORALES ---
+train_df = full_train.sample(n=min(n_train, len(full_train)), random_state=42).copy()
+test_df  = full_test.sample(n=min(n_test, len(full_test)), random_state=42).copy()
+
+# Liberamos memoria de los objetos grandes
+del full_train, full_test, data
+import gc
+gc.collect()
+
+# --- 2. INGENIERÍA DE VARIABLES TEMPORALES ---
 for df_temp in [train_df, test_df]:
     df_temp['hour'] = df_temp['trans_date_trans_time'].dt.hour
     df_temp['day_of_week'] = df_temp['trans_date_trans_time'].dt.dayofweek
-    df_temp['is_weekend'] = df_temp['day_of_week'].apply(lambda x: 1 if x >= 5 else 0)
+    df_temp['is_weekend'] = (df_temp['day_of_week'] >= 5).astype(int)
 
-# 4. SELECCIÓN DE VARIABLES
+# --- 3. SELECCIÓN DE VARIABLES Y PREPROCESAMIENTO ---
 target = 'is_fraud'
 columnas_drop = [target, "trans_date_trans_time","street","first","last","merchant","city","dob","persona_id"]
 
-X_train = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
+X_train_raw = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
 y_train = train_df[target]
-X_test  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
+X_test_raw  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
 y_test  = test_df[target]
 
-cat_columns = [col for col in cat_columns if col in X_train.columns]
-# --- 5. PREPROCESAMIENTO (ColumnTransformer) ---
 preprocessor = ColumnTransformer(
     transformers=[
         ('num', StandardScaler(), num_columns),
-        ('cat', OneHotEncoder(handle_unknown='ignore'), cat_columns)
+        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), cat_columns)
     ])
 
-X_train_scaled = preprocessor.fit_transform(X_train)
-X_test_scaled = preprocessor.transform(X_test)
+# Fit y Transform inicial para todos los modelos
+X_train_scaled = preprocessor.fit_transform(X_train_raw)
+X_test_scaled = preprocessor.transform(X_test_raw)
 
-# Convertir a array denso si el encoder devuelve matriz dispersa (necesario para DL)
-if hasattr(X_train_scaled, "toarray"):
-    X_train_scaled = X_train_scaled.toarray()
-    X_test_scaled = X_test_scaled.toarray()
-
-# --- 6. ENTRENAMIENTO MODELOS RÁPIDOS (Sklearn/XGBoost) ---
-print("\n--- Entrenando Modelos de Respuesta Rápida ---")
-# --- 7. MODELOS SUPERVISADOS (ESTADÍSTICA Y ML) ---
+"""
+# --- 4. MODELOS SUPERVISADOS TRADICIONALES ---
 print("\n--- Entrenando Modelos Supervisados ---")
 
-# 1. LIMPIEZA INICIAL
-# Asegúrate de haber hecho 'del df1, df2' antes de llegar aquí
-gc.collect()
+# A. REGRESIÓN LOGÍSTICA (Statsmodels)
+print("⏳ Ajustando Logit...")
+X_train_stat = sm.add_constant(X_train_scaled) 
+logit_mod = sm.Logit(y_train, X_train_stat)
+logit_res = logit_mod.fit(method='lbfgs', maxiter=100, disp=0)
+print(logit_res.summary())
 
-# A. REGRESIÓN LOGÍSTICA (SUMMARY ESTADÍSTICO)
-print("⏳ Ajustando Logit (Sin duplicación innecesaria)...")
+X_test_stat = sm.add_constant(X_test_scaled)
+y_prob_logit = logit_res.predict(X_test_stat)
+evaluar_modelo("Regresión Logística", y_test, y_prob_logit, umbral=0.5)
 
-try:
-    # Creamos la columna de unos
-    ones_train = np.ones((X_train_scaled.shape[0], 1), dtype=X_train_scaled.dtype)
-
-    # Unimos para el summary. Esta es la ÚNICA copia permitida para Statsmodels.
-    X_train_stat = np.ascontiguousarray(np.hstack([ones_train, X_train_scaled]))
-
-    # Liberamos el vector de unos inmediatamente
-    del ones_train
-    gc.collect()
-
-    # Ajustamos con L-BFGS (Crucial para no generar una matriz Hessiana gigante en RAM)
-    logit_mod = sm.Logit(y_train, X_train_stat)
-    logit_res = logit_mod.fit(method='lbfgs', maxiter=100, disp=0)
-
-    print("\n=== SUMMARY DE REGRESIÓN LOGÍSTICA ===")
-    print(logit_res.summary())
-
-    # Evaluación de la Regresión
-    ones_test = np.ones((X_test_scaled.shape[0], 1), dtype=X_test_scaled.dtype)
-    X_test_stat = np.hstack([ones_test, X_test_scaled])
-    del ones_test
-
-    y_prob_logit = logit_res.predict(X_test_stat)
-    evaluar_modelo("Regresión Logística", y_test, y_prob_logit)
-
-    # LIMPIEZA TOTAL de las matrices de la regresión antes de seguir
-    del X_train_stat, X_test_stat, logit_mod
-    gc.collect()
-
-except MemoryError:
-    print("❌ Error de RAM: El sistema no soporta la matriz de 1.3M en float64.")
-    print("💡 Intenta: X_train_stat = sm.add_constant(X_train_scaled[:500000]) para el summary.")
-
-# B. OTROS SUPERVISADOS (XGBoost)
-# XGBoost es mucho más eficiente y usará la matriz X_train_scaled original
+# B. XGBOOST
 print(f"\n🚀 Entrenando XGBoost...")
 xgb_model = get_xgboost()
 xgb_model.fit(X_train_scaled, y_train)
 y_prob_xgb = xgb_model.predict_proba(X_test_scaled)[:, 1]
-evaluar_modelo("XGBoost", y_test, y_prob_xgb)
+evaluar_modelo("XGBoost", y_test, y_prob_xgb, umbral=0.5)
 
-# --- 8. MODELOS NO SUPERVISADOS ---
-print("\n--- Entrenando Familias No Supervisadas ---")
+# --- 5. MODELOS NO SUPERVISADOS (Isolation Forest & LOF) ---
+print("\n--- Entrenando Modelos de Anomalías ---")
+
+# A. ISOLATION FOREST
 iso_forest = get_isolation_forest()
 iso_forest.fit(X_train_scaled)
-
 y_prob_iso = -iso_forest.decision_function(X_test_scaled)
-# Normalización rápida
 y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
 evaluar_modelo("Isolation Forest", y_test, y_prob_iso)
 
-# --- 9. DEEP LEARNING (MLP & AUTOENCODER) ---
-print("\n--- Entrenando Deep Learning ---")
-# PyTorch requiere float32 para ser eficiente.
-# Si le pasas float64, él creará una copia interna, duplicando tu RAM.
-# Para evitarlo, convertimos AQUÍ y borramos la original si es necesario.
+# B. LOCAL OUTLIER FACTOR (LOF)
+# Nota: LOF en modo novedad requiere fit en X_train_scaled
+print("⏳ Ajustando LOF...")
+lof = LocalOutlierFactor(n_neighbors=20, novelty=True)
+lof.fit(X_train_scaled)
+y_prob_lof = -lof.score_samples(X_test_scaled)
+y_prob_lof = (y_prob_lof - y_prob_lof.min()) / (y_prob_lof.max() - y_prob_lof.min() + 1e-9)
+evaluar_modelo("LOF", y_test, y_prob_lof)
 
-X_train_tensor = torch.from_numpy(X_train_scaled.astype('float32'))
-X_test_tensor = torch.from_numpy(X_test_scaled.astype('float32'))
-y_train_tensor = torch.FloatTensor(y_train.values.copy()).view(-1, 1)
+# --- 6. PREPARACIÓN PARA REDES NEURONALES (PyTorch) ---
+X_train_tensor = torch.from_numpy(X_train_scaled.copy()).float()
+X_test_tensor = torch.from_numpy(X_test_scaled.copy()).float()
+y_train_tensor = torch.from_numpy(y_train.values.copy()).float().view(-1, 1)
+
 input_dim = X_train_tensor.shape[1]
+train_loader = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
 
-# A. MLP
-print(f"🚀 Entrenando MLP...")
+# --- 7. ENTRENAMIENTO MLP BALANCEADO ---
+conteo_clases = y_train.value_counts()
+peso_fraude = conteo_clases[0] / conteo_clases[1]
+pos_weight = torch.tensor([peso_fraude]).float()
+
 mlp_model = MLP(input_dim)
-criterion_mlp = torch.nn.BCELoss()
 optimizer_mlp = torch.optim.Adam(mlp_model.parameters(), lr=0.001)
+criterion_mlp = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
 for epoch in range(50):
     mlp_model.train()
-    optimizer_mlp.zero_grad()
-    outputs = mlp_model(X_train_tensor)
-    loss = criterion_mlp(outputs, y_train_tensor)
-    loss.backward()
-    optimizer_mlp.step()
-    if (epoch + 1) % 10 == 0:
-        print(f"MLP - Época [{epoch + 1}/50], Loss: {loss.item():.4f}")
+    for batch_X, batch_y in train_loader:
+        optimizer_mlp.zero_grad()
+        loss = criterion_mlp(mlp_model(batch_X), batch_y)
+        loss.backward()
+        optimizer_mlp.step()
 
 mlp_model.eval()
 with torch.no_grad():
-    y_prob_mlp = mlp_model(X_test_tensor).numpy().flatten()
-    evaluar_modelo("MLP (Red Neuronal)", y_test, y_prob_mlp)
+    y_prob_mlp = torch.sigmoid(mlp_model(X_test_tensor)).numpy().flatten()
+    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.5)
 
-# B. AUTOENCODER
-print(f"🚀 Entrenando Autoencoder...")
-ae_model = Autoencoder(input_dim)
-criterion_ae = torch.nn.MSELoss()
+# --- 8. ENTRENAMIENTO AUTOENCODER ---
+X_train_normal = X_train_tensor[y_train_tensor.flatten() == 0]
+ae_train_loader = DataLoader(TensorDataset(X_train_normal), batch_size=32, shuffle=True)
+
+ae_model = AutoencoderProgresivoVariable(input_dim, c1=16, c2=8, bottleneck=4)
 optimizer_ae = torch.optim.Adam(ae_model.parameters(), lr=0.001)
+criterion_ae = torch.nn.MSELoss()
 
 for epoch in range(50):
     ae_model.train()
-    optimizer_ae.zero_grad()
-    reconstruction = ae_model(X_train_tensor)
-    loss = criterion_ae(reconstruction, X_train_tensor)
-    loss.backward()
-    optimizer_ae.step()
-    if (epoch + 1) % 10 == 0:
-        print(f"Autoencoder - Época [{epoch + 1}/50], Loss: {loss.item():.4f}")
+    for batch in ae_train_loader:
+        batch_X = batch[0]
+        optimizer_ae.zero_grad()
+        loss = criterion_ae(ae_model(batch_X), batch_X)
+        loss.backward()
+        optimizer_ae.step()
 
 ae_model.eval()
 with torch.no_grad():
     reconst_test = ae_model(X_test_tensor)
     mse_test = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1).numpy()
-    mse_test_norm = (mse_test - mse_test.min()) / (mse_test.max() - mse_test.min() + 1e-9)
-    evaluar_modelo("Autoencoder", y_test, mse_test_norm)
-
-print("\n--- Proceso finalizado con éxito ---")
+    # Sin umbral para usar el percentil dinámico
+    evaluar_modelo("Autoencoder", y_test, mse_test)
 """
