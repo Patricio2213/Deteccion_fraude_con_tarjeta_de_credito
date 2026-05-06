@@ -4,6 +4,7 @@ from Subida_data import *
 from procesamiento_bases import *
 from EDA import *
 from models import *
+import statsmodels.api as sm
 
 #Carga de bases
 data_train=buscar_y_cargar("fraudTrain.csv")
@@ -398,6 +399,12 @@ for num_var in num_nuevas:
 #ANÁLISIS MULTIVARIADO
 
 #boxplots_con_tabla(data, num_nuevas,target="is_fraud")
+
+# Actualizar la lista con el nombre de las variables categóricas
+cat_columns = data.select_dtypes(include=['object', 'string']).drop(columns=cols_a_eliminar2,errors="ignore").columns
+
+# Actualizar la lista de numéricas excluyendo las de arriba
+num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
 #--------------------------------------------------------
 #MODELOS
 #--------------------------------------------------------
@@ -438,38 +445,76 @@ for df_temp in [train_df, test_df]:
 
 # --- 3. SELECCIÓN DE VARIABLES Y PREPROCESAMIENTO ---
 target = 'is_fraud'
-columnas_drop = [target, "trans_date_trans_time","street","first","last","merchant","city","dob","persona_id"]
+columnas_drop = [target, "trans_date_trans_time", "street", "first", "last",
+                 "merchant", "city", "dob", "persona_id","lat","long","merch_lat","merch_long","job"]
 
+# Creamos los sets de datos base
 X_train_raw = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
-y_train = train_df[target]
 X_test_raw  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
+y_train = train_df[target]
 y_test  = test_df[target]
+
+num_columns = [col for col in num_columns if col in X_train_raw.columns]
+cat_columns = [col for col in cat_columns if col in X_train_raw.columns]
 
 preprocessor = ColumnTransformer(
     transformers=[
         ('num', StandardScaler(), num_columns),
-        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), cat_columns)
+        ('cat', OneHotEncoder(drop='first',handle_unknown='ignore', sparse_output=False), cat_columns)
     ])
 
-# Fit y Transform inicial para todos los modelos
 X_train_scaled = preprocessor.fit_transform(X_train_raw)
 X_test_scaled = preprocessor.transform(X_test_raw)
 
-"""
 # --- 4. MODELOS SUPERVISADOS TRADICIONALES ---
 print("\n--- Entrenando Modelos Supervisados ---")
 
 # A. REGRESIÓN LOGÍSTICA (Statsmodels)
 print("⏳ Ajustando Logit...")
-X_train_stat = sm.add_constant(X_train_scaled) 
-logit_mod = sm.Logit(y_train, X_train_stat)
-logit_res = logit_mod.fit(method='lbfgs', maxiter=100, disp=0)
-print(logit_res.summary())
 
-X_test_stat = sm.add_constant(X_test_scaled)
-y_prob_logit = logit_res.predict(X_test_stat)
-evaluar_modelo("Regresión Logística", y_test, y_prob_logit, umbral=0.5)
+# 1. Recuperar nombres de columnas
+nombres_columnas = preprocessor.get_feature_names_out()
 
+# 2. Crear DataFrames y REINICIAR ÍNDICES de las etiquetas
+X_train_final = pd.DataFrame(X_train_scaled, columns=nombres_columnas)
+X_test_final = pd.DataFrame(X_test_scaled, columns=nombres_columnas)
+
+# Reseteamos y_train e y_test
+y_train_reset = y_train.reset_index(drop=True)
+y_test_reset = y_test.reset_index(drop=True)
+
+# 3. Agregar constante
+X_train_stat = sm.add_constant(X_train_final)
+X_test_stat = sm.add_constant(X_test_final)
+
+# 4. Asegurar que las columnas de Test sean IDENTICAS a las de Train
+# Si falta una columna en Test que estaba en Train, la crea con ceros
+X_test_stat = X_test_stat.reindex(columns=X_train_stat.columns, fill_value=0)
+
+print(f"✅ Columnas Train: {X_train_stat.shape[1]} | Columnas Test: {X_test_stat.shape[1]}")
+
+# 5. Ajustar modelo
+logit_mod = sm.Logit(y_train_reset, X_train_stat)
+
+try:
+    # Usamos bfgs que es más tolerante a la cuasi-separación
+    logit_res = logit_mod.fit(method='bfgs', maxiter=100, disp=0)
+    print("\n=== SUMMARY DE REGRESIÓN LOGÍSTICA ===")
+    print(logit_res.summary())
+
+    y_prob_logit = logit_res.predict(X_test_stat)
+    evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.5)
+
+except Exception as e:
+    print(f"⚠️ Nota de Tesis: La Regresión Logística no convergió por inestabilidad numérica.")
+    print(f"Detalle: {e}")
+
+    # Ejemplo para una variable categórica
+print(pd.crosstab(train_df['category'], train_df['is_fraud']))
+import numpy as np
+rank = np.linalg.matrix_rank(X_train_scaled)
+print(f"Columnas totales: {X_train_scaled.shape[1]} | Rango: {rank}")
+"""
 # B. XGBOOST
 print(f"\n🚀 Entrenando XGBoost...")
 xgb_model = get_xgboost()
