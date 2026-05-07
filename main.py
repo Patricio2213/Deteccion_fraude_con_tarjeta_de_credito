@@ -530,7 +530,7 @@ iso_forest = get_isolation_forest()
 iso_forest.fit(X_train_scaled)
 y_prob_iso = -iso_forest.decision_function(X_test_scaled)
 y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
-evaluar_modelo("Isolation Forest", y_test, y_prob_iso)
+evaluar_modelo("Isolation Forest", y_test, y_prob_iso,umbral=0.5)
 
 # B. LOCAL OUTLIER FACTOR (LOF)
 # Nota: LOF en modo novedad requiere fit en X_train_scaled
