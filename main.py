@@ -515,12 +515,26 @@ import numpy as np
 rank = np.linalg.matrix_rank(X_train_scaled)
 print(f"Columnas totales: {X_train_scaled.shape[1]} | Rango: {rank}")
 """
-# B. XGBOOST
-print(f"\n🚀 Entrenando XGBoost...")
-xgb_model = get_xgboost()
-xgb_model.fit(X_train_scaled, y_train)
-y_prob_xgb = xgb_model.predict_proba(X_test_scaled)[:, 1]
-evaluar_modelo("XGBoost", y_test, y_prob_xgb, umbral=0.5)
+# B. XGBOOST con OPTIMIZACIÓN BAYESIANA
+print(f"\n🚀 Iniciando Optimización Bayesiana para XGBoost (Rangos: Tayebi & El Kafhali)...")
+
+# Crear el estudio de Optuna
+study = optuna.create_study(direction='maximize')
+
+# Ejecutamos la optimización (n_trials=20 es un buen inicio para no tardar horas)
+# Pasamos X_train_scaled e y_train para que aprete de ellos
+study.optimize(lambda trial: objective_xgboost(trial, X_train_scaled, y_train), n_trials=20)
+
+print(f"✅ Mejores Hiperparámetros encontrados: {study.best_params}")
+
+# Entrenamos el modelo final con los mejores parámetros encontrados
+print(f"📊 Entrenando modelo final con parámetros óptimos...")
+xgb_model_final = get_xgboost(study.best_params)
+xgb_model_final.fit(X_train_scaled, y_train)
+
+# Predicción y Evaluación
+y_prob_xgb = xgb_model_final.predict_proba(X_test_scaled)[:, 1]
+evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.5)
 
 # --- 5. MODELOS NO SUPERVISADOS (Isolation Forest & LOF) ---
 print("\n--- Entrenando Modelos de Anomalías ---")

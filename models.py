@@ -6,6 +6,8 @@ from xgboost import XGBClassifier
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, confusion_matrix
+import optuna
+from sklearn.model_selection import StratifiedKFold, cross_val_score
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.functional as F
 import torch.optim as optim
@@ -18,13 +20,39 @@ def get_logistic_regression():
     return LogisticRegression(C=1.0, solver='liblinear')  # @ajuste: C menor aumenta regularización
 
 
-def get_xgboost():
-    return XGBClassifier(
-        n_estimators=100,  # @ajuste: n_estimadores (cantidad de árboles)
-        max_depth=6,  # @ajuste: profundidad (evita sobreajuste si es bajo)
-        learning_rate=0.1,  # @ajuste: tasa de aprendizaje (eta)
-        eval_metric='logloss'  # Métrica interna para clasificación binaria
-    )
+def objective_xgboost(trial, X, y):
+    # Definimos rangos exactos basados en Tayebi y El Kafhali
+    param = {
+        'n_estimators': trial.suggest_int('n_estimators', 50, 400),
+        'max_depth': trial.suggest_int('max_depth', 1, 10),
+        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.7),
+        'gamma': trial.suggest_float('gamma', 0.01, 1.0),
+        'eval_metric': 'logloss',
+        'random_state': 42,
+        'n_jobs': -1
+    }
+
+    # Implementamos Stratified 5-Fold Cross-Validation
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+    # El objetivo es maximizar el AUC
+    # validacion cruzada con kfold 5
+    score = cross_val_score(
+        XGBClassifier(**param), X, y,
+        cv=cv,
+        scoring='roc_auc',
+        n_jobs=-1
+    ).mean()
+
+    return score
+
+
+def get_xgboost(params=None):
+    # Si no pasamos parámetros, usa unos por defecto
+    if params is None:
+        return XGBClassifier(n_estimators=100, max_depth=6, learning_rate=0.1, eval_metric='logloss', random_state=42)
+    # Si pasamos los optimizados, los usa
+    return XGBClassifier(**params)
 
 
 # MLP: Red Neuronal para Clasificación
