@@ -446,7 +446,7 @@ for df_temp in [train_df, test_df]:
 # --- 3. SELECCIÓN DE VARIABLES Y PREPROCESAMIENTO ---
 target = 'is_fraud'
 columnas_drop = [target, "trans_date_trans_time", "street", "first", "last",
-                 "merchant", "city", "dob", "persona_id","lat","long","merch_lat","merch_long","job"]
+                 "merchant", "city", "dob", "persona_id","lat","long","merch_lat","merch_long","job","amt","city_pop","velocidad"]
 
 # Creamos los sets de datos base
 X_train_raw = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
@@ -514,7 +514,7 @@ print(pd.crosstab(train_df['category'], train_df['is_fraud']))
 import numpy as np
 rank = np.linalg.matrix_rank(X_train_scaled)
 print(f"Columnas totales: {X_train_scaled.shape[1]} | Rango: {rank}")
-"""
+
 # B. XGBOOST con OPTIMIZACIÓN BAYESIANA
 print(f"\n🚀 Iniciando Optimización Bayesiana para XGBoost (Rangos: Tayebi & El Kafhali)...")
 
@@ -546,14 +546,31 @@ y_prob_iso = -iso_forest.decision_function(X_test_scaled)
 y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
 evaluar_modelo("Isolation Forest", y_test, y_prob_iso,umbral=0.5)
 
-# B. LOCAL OUTLIER FACTOR (LOF)
-# Nota: LOF en modo novedad requiere fit en X_train_scaled
-print("⏳ Ajustando LOF...")
-lof = LocalOutlierFactor(n_neighbors=20, novelty=True)
-lof.fit(X_train_scaled)
-y_prob_lof = -lof.score_samples(X_test_scaled)
-y_prob_lof = (y_prob_lof - y_prob_lof.min()) / (y_prob_lof.max() - y_prob_lof.min() + 1e-9)
-evaluar_modelo("LOF", y_test, y_prob_lof)
+# B. LOCAL OUTLIER FACTOR (LOF) - METODOLOGÍA DE RANGOS (20-50)
+print("⏳ Ejecutando LOF con metodología de rangos (Breunig et al.)...")
+
+# Definimos el rango de vecinos a probar
+rango_vecinos = [20, 30, 40, 50]
+scores_acumulados = []
+
+for k in rango_vecinos:
+    print(f"   Procesando k={k}...")
+    lof = get_lof(neighbors=k)
+    lof.fit(X_train_scaled)
+    
+    # Obtenemos el score para este k, usamos signo negativo porque score_samples devuelve valores negativos para anomalías
+    current_scores = -lof.score_samples(X_test_scaled)
+    scores_acumulados.append(current_scores)
+
+# Tomar el máximo score LOF entre todos los k
+# np.maximum.reduce compara los arrays y se queda con el valor más alto en cada posición
+
+y_prob_lof_max = np.maximum.reduce(scores_acumulados)
+
+# Normalización para el Benchmark
+y_prob_lof_final = (y_prob_lof_max - y_prob_lof_max.min()) / (y_prob_lof_max.max() - y_prob_lof_max.min() + 1e-9)
+
+evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.5)
 
 # --- 6. PREPARACIÓN PARA REDES NEURONALES (PyTorch) ---
 X_train_tensor = torch.from_numpy(X_train_scaled.copy()).float()
@@ -608,4 +625,3 @@ with torch.no_grad():
     mse_test = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1).numpy()
     # Sin umbral para usar el percentil dinámico
     evaluar_modelo("Autoencoder", y_test, mse_test)
-"""

@@ -80,11 +80,13 @@ def get_isolation_forest():
     )
 
 
-def get_lof():
+def get_lof(neighbors):
+
     return LocalOutlierFactor(
-        n_neighbors=20,
-        novelty=True,
-        n_jobs=-1  # Esto acelera el proceso usando todos tus núcleos
+        n_neighbors=neighbors,
+        novelty=True,         # Necesario para usarlo en el set de testeo (X_test)
+        contamination=0.01,   # Proporción estimada de fraude
+        n_jobs=-1             # Uso de todos los núcleos del procesador
     )
 
 
