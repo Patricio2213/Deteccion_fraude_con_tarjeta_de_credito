@@ -465,7 +465,7 @@ preprocessor = ColumnTransformer(
 
 X_train_scaled = preprocessor.fit_transform(X_train_raw)
 X_test_scaled = preprocessor.transform(X_test_raw)
-
+"""
 # --- 4. MODELOS SUPERVISADOS TRADICIONALES ---
 print("\n--- Entrenando Modelos Supervisados ---")
 
@@ -571,7 +571,7 @@ y_prob_lof_max = np.maximum.reduce(scores_acumulados)
 y_prob_lof_final = (y_prob_lof_max - y_prob_lof_max.min()) / (y_prob_lof_max.max() - y_prob_lof_max.min() + 1e-9)
 
 evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.5)
-
+"""
 # --- 6. PREPARACIÓN PARA REDES NEURONALES (PyTorch) ---
 X_train_tensor = torch.from_numpy(X_train_scaled.copy()).float()
 X_test_tensor = torch.from_numpy(X_test_scaled.copy()).float()
@@ -579,6 +579,7 @@ y_train_tensor = torch.from_numpy(y_train.values.copy()).float().view(-1, 1)
 
 input_dim = X_train_tensor.shape[1]
 train_loader = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
+"""
 
 # --- 7. ENTRENAMIENTO MLP BALANCEADO ---
 conteo_clases = y_train.value_counts()
@@ -589,19 +590,42 @@ mlp_model = MLP(input_dim)
 optimizer_mlp = torch.optim.Adam(mlp_model.parameters(), lr=0.001)
 criterion_mlp = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
-for epoch in range(50):
+historial_loss_mlp = []  # Guardamos los datos para graficar después
+num_epochs = 20
+
+print(f"🚀 Entrenando MLP Balanceado...")
+
+for epoch in range(num_epochs):
     mlp_model.train()
+    running_loss = 0.0
     for batch_X, batch_y in train_loader:
         optimizer_mlp.zero_grad()
         loss = criterion_mlp(mlp_model(batch_X), batch_y)
         loss.backward()
         optimizer_mlp.step()
+        running_loss += loss.item()
+
+    avg_loss = running_loss / len(train_loader)
+    historial_loss_mlp.append(avg_loss)
+
+    if (epoch + 1) % 5 == 0:
+        print(f"   Época [{epoch + 1}/{num_epochs}] completada.")
 
 mlp_model.eval()
 with torch.no_grad():
     y_prob_mlp = torch.sigmoid(mlp_model(X_test_tensor)).numpy().flatten()
     evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.5)
 
+# --- GRÁFICA DE SALIDA (Separada del flujo de entrenamiento) ---
+plt.figure(figsize=(8, 4))
+plt.plot(historial_loss_mlp, label='Pérdida Entrenamiento', color='royalblue', linewidth=2)
+plt.title('Evolución del Error - MLP (Tesis)')
+plt.xlabel('Épocas')
+plt.ylabel('BCE Loss')
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.show()
+"""
 # --- 8. ENTRENAMIENTO AUTOENCODER ---
 X_train_normal = X_train_tensor[y_train_tensor.flatten() == 0]
 ae_train_loader = DataLoader(TensorDataset(X_train_normal), batch_size=32, shuffle=True)
@@ -610,18 +634,41 @@ ae_model = AutoencoderProgresivoVariable(input_dim, c1=16, c2=8, bottleneck=4)
 optimizer_ae = torch.optim.Adam(ae_model.parameters(), lr=0.001)
 criterion_ae = torch.nn.MSELoss()
 
-for epoch in range(50):
+historial_loss_ae = []
+num_epochs_ae = 10
+
+print(f"🚀 Entrenando Autoencoder (Solo datos normales)...")
+
+for epoch in range(num_epochs_ae):
     ae_model.train()
+    running_loss = 0.0
     for batch in ae_train_loader:
         batch_X = batch[0]
         optimizer_ae.zero_grad()
         loss = criterion_ae(ae_model(batch_X), batch_X)
         loss.backward()
         optimizer_ae.step()
+        running_loss += loss.item()
 
+    avg_loss = running_loss / len(ae_train_loader)
+    historial_loss_ae.append(avg_loss)
+
+    if (epoch + 1) % 5 == 0 or epoch == 0:
+        print(f"   Época [{epoch + 1}/{num_epochs_ae}] - Loss: {avg_loss:.6f}")
+
+# --- EVALUACIÓN ---
 ae_model.eval()
 with torch.no_grad():
     reconst_test = ae_model(X_test_tensor)
     mse_test = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1).numpy()
-    # Sin umbral para usar el percentil dinámico
     evaluar_modelo("Autoencoder", y_test, mse_test)
+
+# --- GRÁFICA DE SALIDA AUTOENCODER ---
+plt.figure(figsize=(8, 4))
+plt.plot(historial_loss_ae, label='Pérdida Reconstrucción (MSE)', color='forestgreen', linewidth=2)
+plt.title('Evolución del Error - Autoencoder (Tesis)')
+plt.xlabel('Épocas')
+plt.ylabel('MSE Loss')
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.show()
