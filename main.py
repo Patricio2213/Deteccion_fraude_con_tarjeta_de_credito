@@ -465,7 +465,7 @@ preprocessor = ColumnTransformer(
 
 X_train_scaled = preprocessor.fit_transform(X_train_raw)
 X_test_scaled = preprocessor.transform(X_test_raw)
-"""
+
 # --- 4. MODELOS SUPERVISADOS TRADICIONALES ---
 print("\n--- Entrenando Modelos Supervisados ---")
 
@@ -474,7 +474,7 @@ print("⏳ Ajustando Logit...")
 
 # 1. Recuperar nombres de columnas
 nombres_columnas = preprocessor.get_feature_names_out()
-
+"""
 # 2. Crear DataFrames y REINICIAR ÍNDICES de las etiquetas
 X_train_final = pd.DataFrame(X_train_scaled, columns=nombres_columnas)
 X_test_final = pd.DataFrame(X_test_scaled, columns=nombres_columnas)
@@ -545,7 +545,7 @@ iso_forest.fit(X_train_scaled)
 y_prob_iso = -iso_forest.decision_function(X_test_scaled)
 y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
 evaluar_modelo("Isolation Forest", y_test, y_prob_iso,umbral=0.5)
-
+"""
 # B. LOCAL OUTLIER FACTOR (LOF) - METODOLOGÍA DE RANGOS (20-50)
 print("⏳ Ejecutando LOF con metodología de rangos (Breunig et al.)...")
 
@@ -579,7 +579,7 @@ y_train_tensor = torch.from_numpy(y_train.values.copy()).float().view(-1, 1)
 
 input_dim = X_train_tensor.shape[1]
 train_loader = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
-"""
+
 
 # --- 7. ENTRENAMIENTO MLP BALANCEADO ---
 conteo_clases = y_train.value_counts()
@@ -625,7 +625,7 @@ plt.ylabel('BCE Loss')
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.show()
-"""
+
 # --- 8. ENTRENAMIENTO AUTOENCODER ---
 X_train_normal = X_train_tensor[y_train_tensor.flatten() == 0]
 ae_train_loader = DataLoader(TensorDataset(X_train_normal), batch_size=32, shuffle=True)
@@ -672,3 +672,17 @@ plt.ylabel('MSE Loss')
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.show()
+
+
+# --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
+nombres_columnas = preprocessor.get_feature_names_out()
+
+# Supervisados
+aplicar_shap_tesis_final(xgb_model_final, X_test_scaled, nombres_columnas, "XGBoost Optimizado")
+aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP Balanceado", es_pytorch=True)
+
+# No Supervisados / Anomalías
+aplicar_shap_tesis_final(iso_forest, X_test_scaled, nombres_columnas, "Isolation Forest")
+"""
+aplicar_shap_tesis_final(lof, X_test_scaled, nombres_columnas, "LOF", es_lof=True)
+#aplicar_shap_tesis_final(ae_model, X_test_scaled, nombres_columnas, "Autoencoder", es_pytorch=True)

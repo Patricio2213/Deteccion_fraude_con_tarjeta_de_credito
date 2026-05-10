@@ -1,4 +1,5 @@
 import torch
+import pandas as pd
 import numpy as np
 import torch.nn as nn
 from sklearn.linear_model import LogisticRegression
@@ -8,6 +9,8 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, confusion_matrix
 import optuna
 from sklearn.model_selection import StratifiedKFold, cross_val_score
+import shap
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.functional as F
 import torch.optim as optim
@@ -152,3 +155,79 @@ def evaluar_modelo(nombre, y_real, y_prob, umbral=None):
         "fn": fn,
         "umbral": umbral
     }
+
+
+def aplicar_shap_tesis_final(model, X_data_numpy, feature_names, nombre_modelo="Modelo", es_pytorch=False,
+                             es_lof=False):
+    print(f"\n" + "=" * 40)
+    print(f"🧐 ANALIZANDO INTERPRETABILIDAD: {nombre_modelo}")
+    print("=" * 40)
+
+    sample_size = min(2000, len(X_data_numpy))
+    indices = np.random.choice(X_data_numpy.shape[0], sample_size, replace=False)
+    X_sample_np = X_data_numpy[indices]
+
+    try:
+        # --- Lógica de Explicadores ---
+        if es_pytorch:
+            def predict_fn_torch(x_np):
+                model.eval()
+                x_tensor = torch.from_numpy(x_np).float()
+                with torch.no_grad():
+                    if "autoencoder" in nombre_modelo.lower():
+                        reconst = model(x_tensor)
+                        return torch.mean((x_tensor - reconst) ** 2, dim=1).numpy()
+                    else:
+                        return torch.sigmoid(model(x_tensor)).numpy().flatten()
+
+            masker = shap.maskers.Independent(X_data_numpy, max_samples=100)
+            explainer = shap.Explainer(predict_fn_torch, masker)
+            shap_values = explainer(X_sample_np)
+        elif es_lof:
+            def predict_fn_lof(x_np):
+                return -model.score_samples(x_np)
+
+            masker = shap.maskers.Independent(X_data_numpy, max_samples=100)
+            explainer = shap.Explainer(predict_fn_lof, masker)
+            shap_values = explainer(X_sample_np)
+        else:
+            explainer = shap.Explainer(model)
+            shap_values = explainer(X_sample_np)
+
+        # --- EXTRACCIÓN E IMPRESIÓN DE TODAS LAS VARIABLES ---
+        if hasattr(shap_values, "values"):
+            if len(shap_values.values.shape) == 3:  # Multiclase (XGBoost)
+                vals = np.abs(shap_values.values[:, :, 1]).mean(0)
+            else:
+                vals = np.abs(shap_values.values).mean(0)
+        else:
+            vals = np.abs(shap_values).mean(0)
+
+        # Crear DataFrame con el 100% de las variables
+        df_total = pd.DataFrame(list(zip(feature_names, vals)), columns=['Variable', 'Impacto_Medio_SHAP'])
+        df_total = df_total.sort_values(by='Impacto_Medio_SHAP', ascending=False)
+
+        print(f"\n📋 IMPACTO TOTAL DE VARIABLES (Orden descendente) - {nombre_modelo}:")
+        pd.set_option('display.max_rows', None)  # Para que PyCharm no esconda filas
+        print(df_total.to_string(index=False))
+        pd.reset_option('display.max_rows')
+
+        # --- GENERACIÓN DEL GRÁFICO (SOLO TOP 15) ---
+        plt.figure(figsize=(12, 8))
+        # Asignamos los nombres para el gráfico
+        if hasattr(shap_values, "values"):
+            shap_values.feature_names = list(feature_names)
+
+        # max_display=15 hace la magia de limpiar el gráfico automáticamente
+        if hasattr(shap_values, "values") and len(shap_values.values.shape) == 3:
+            shap.plots.bar(shap_values[:, :, 1], show=False, max_display=15)
+        else:
+            shap.plots.bar(shap_values, show=False, max_display=15)
+
+        plt.title(f"Top 15 Variables de Mayor Impacto (SHAP) - {nombre_modelo}")
+        plt.tight_layout()
+        plt.savefig(f"shap_top15_{nombre_modelo.lower().replace(' ', '_')}.png", dpi=300)
+        plt.show()
+
+    except Exception as e:
+        print(f"❌ Error en {nombre_modelo}: {e}")
