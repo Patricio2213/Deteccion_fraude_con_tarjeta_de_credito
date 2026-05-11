@@ -474,7 +474,7 @@ print("⏳ Ajustando Logit...")
 
 # 1. Recuperar nombres de columnas
 nombres_columnas = preprocessor.get_feature_names_out()
-"""
+
 # 2. Crear DataFrames y REINICIAR ÍNDICES de las etiquetas
 X_train_final = pd.DataFrame(X_train_scaled, columns=nombres_columnas)
 X_test_final = pd.DataFrame(X_test_scaled, columns=nombres_columnas)
@@ -545,7 +545,7 @@ iso_forest.fit(X_train_scaled)
 y_prob_iso = -iso_forest.decision_function(X_test_scaled)
 y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
 evaluar_modelo("Isolation Forest", y_test, y_prob_iso,umbral=0.5)
-"""
+
 # B. LOCAL OUTLIER FACTOR (LOF) - METODOLOGÍA DE RANGOS (20-50)
 print("⏳ Ejecutando LOF con metodología de rangos (Breunig et al.)...")
 
@@ -571,7 +571,7 @@ y_prob_lof_max = np.maximum.reduce(scores_acumulados)
 y_prob_lof_final = (y_prob_lof_max - y_prob_lof_max.min()) / (y_prob_lof_max.max() - y_prob_lof_max.min() + 1e-9)
 
 evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.5)
-"""
+
 # --- 6. PREPARACIÓN PARA REDES NEURONALES (PyTorch) ---
 X_train_tensor = torch.from_numpy(X_train_scaled.copy()).float()
 X_test_tensor = torch.from_numpy(X_test_scaled.copy()).float()
@@ -615,7 +615,7 @@ mlp_model.eval()
 with torch.no_grad():
     y_prob_mlp = torch.sigmoid(mlp_model(X_test_tensor)).numpy().flatten()
     evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.5)
-
+"""
 # --- GRÁFICA DE SALIDA (Separada del flujo de entrenamiento) ---
 plt.figure(figsize=(8, 4))
 plt.plot(historial_loss_mlp, label='Pérdida Entrenamiento', color='royalblue', linewidth=2)
@@ -625,13 +625,13 @@ plt.ylabel('BCE Loss')
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.show()
-
+"""
 # --- 8. ENTRENAMIENTO AUTOENCODER ---
 X_train_normal = X_train_tensor[y_train_tensor.flatten() == 0]
 ae_train_loader = DataLoader(TensorDataset(X_train_normal), batch_size=32, shuffle=True)
 
-ae_model = AutoencoderProgresivoVariable(input_dim, c1=16, c2=8, bottleneck=4)
-optimizer_ae = torch.optim.Adam(ae_model.parameters(), lr=0.001)
+ae_model = AutoencoderProgresivoVariable(input_dim, c1=25, c2=10, bottleneck=4)
+optimizer_ae = torch.optim.Adam(ae_model.parameters(), lr=0.01)
 criterion_ae = torch.nn.MSELoss()
 
 historial_loss_ae = []
@@ -662,6 +662,7 @@ with torch.no_grad():
     reconst_test = ae_model(X_test_tensor)
     mse_test = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1).numpy()
     evaluar_modelo("Autoencoder", y_test, mse_test)
+"""
 
 # --- GRÁFICA DE SALIDA AUTOENCODER ---
 plt.figure(figsize=(8, 4))
@@ -673,7 +674,6 @@ plt.grid(True, alpha=0.3)
 plt.legend()
 plt.show()
 
-
 # --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
 nombres_columnas = preprocessor.get_feature_names_out()
 
@@ -683,6 +683,64 @@ aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP Balanc
 
 # No Supervisados / Anomalías
 aplicar_shap_tesis_final(iso_forest, X_test_scaled, nombres_columnas, "Isolation Forest")
-"""
+
 aplicar_shap_tesis_final(lof, X_test_scaled, nombres_columnas, "LOF", es_lof=True)
-#aplicar_shap_tesis_final(ae_model, X_test_scaled, nombres_columnas, "Autoencoder", es_pytorch=True)
+aplicar_shap_tesis_final(ae_model, X_test_scaled, nombres_columnas, "Autoencoder", es_pytorch=True)
+"""
+
+# --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
+
+# 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)
+dias_data = (train_df['trans_date_trans_time'].max() - train_df['trans_date_trans_time'].min()).days
+if dias_data == 0: dias_data = 1
+
+# Calculamos frecuencia anual y aplicamos un piso de 6 transacciones/año para compensar el muestreo
+conteo_muestral = train_df.groupby('cc_num').size()
+frecuencia_extrapolada = (conteo_muestral * 365 / dias_data)
+freq_map = frecuencia_extrapolada.clip(lower=6).to_dict()
+
+# 2. Monto promedio por cliente (solo legítimas)
+clv_map = train_df[train_df['is_fraud'] == 0].groupby('cc_num')['amt'].mean().to_dict()
+
+# 3. Construcción del Vector de CLV para el set de Test
+def calc_clv_dinamico(cc):
+    amt_avg = clv_map.get(cc, train_df['amt'].mean())
+    freq = freq_map.get(cc, 6) # Si el cliente no está en train, usamos el piso
+    return (amt_avg * freq) * 0.018 * 5 # Margen 1.8% y 5 años vida media
+
+clv_test_vector = test_df['cc_num'].apply(calc_clv_dinamico).values
+amt_test_vector = test_df['amt'].values
+y_test_values = y_test.values
+
+# 4. Ejecución del Benchmark para todos los modelos del script
+resultados_economicos = []
+
+# Supervisados
+if 'y_prob_logit' in locals():
+    resultados_economicos.append(calcular_matriz_costos_economica("Regresión Logística", y_test_values, y_prob_logit, amt_test_vector, clv_test_vector))
+
+if 'y_prob_xgb' in locals():
+    resultados_economicos.append(calcular_matriz_costos_economica("XGBoost Optimizado", y_test_values, y_prob_xgb, amt_test_vector, clv_test_vector))
+
+if 'y_prob_mlp' in locals():
+    resultados_economicos.append(calcular_matriz_costos_economica("MLP Balanceado", y_test_values, y_prob_mlp, amt_test_vector, clv_test_vector))
+
+# Anomalías (Normalizando scores para que actúen como probabilidad 0-1)
+if 'y_prob_iso' in locals():
+    y_prob_iso_norm = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
+    resultados_economicos.append(calcular_matriz_costos_economica("Isolation Forest", y_test_values, y_prob_iso_norm, amt_test_vector, clv_test_vector))
+
+if 'y_prob_lof_final' in locals():
+    y_prob_lof_norm = (y_prob_lof_final - y_prob_lof_final.min()) / (y_prob_lof_final.max() - y_prob_lof_final.min() + 1e-9)
+    resultados_economicos.append(calcular_matriz_costos_economica("LOF (20-50)", y_test_values, y_prob_lof_norm, amt_test_vector, clv_test_vector))
+
+if 'mse_test' in locals():
+    mse_ae_norm = (mse_test - mse_test.min()) / (mse_test.max() - mse_test.min() + 1e-9)
+    resultados_economicos.append(calcular_matriz_costos_economica("Autoencoder", y_test_values, mse_ae_norm, amt_test_vector, clv_test_vector))
+
+# 5. Visualización del Ranking Económico
+df_resumen = pd.DataFrame(resultados_economicos).sort_values(by='costo_total')
+print("\n" + "="*50)
+print("RANKING DE MODELOS POR IMPACTO FINANCIERO")
+print("="*50)
+print(df_resumen[['modelo', 'costo_total', 'ahorro', 'ahorro_pct', 'fp', 'fn']])

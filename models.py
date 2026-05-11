@@ -95,7 +95,7 @@ def get_lof(neighbors):
 
 # Autoencoder en PyTorch
 class AutoencoderProgresivoVariable(nn.Module):
-    def __init__(self, input_dim, c1=16, c2=8, bottleneck=4):
+    def __init__(self, input_dim, c1=25, c2=10, bottleneck=4):
         super(AutoencoderProgresivoVariable, self).__init__()
 
         # Encoder Progresivo: Entrada -> C1 -> C2 -> Cuello
@@ -231,3 +231,50 @@ def aplicar_shap_tesis_final(model, X_data_numpy, feature_names, nombre_modelo="
 
     except Exception as e:
         print(f"❌ Error en {nombre_modelo}: {e}")
+
+
+
+
+def calcular_matriz_costos_economica(nombre_modelo, y_real, y_prob, amt_test, clv_vector,
+                                     multiplicador_lexis=5.75, ca=2.50):
+    """
+    Calcula el impacto económico real basado en la matriz de Correa Bahnsen & LexisNexis.
+    Aplica Bayes Minimum Risk para optimizar el umbral de decisión.
+    """
+    # 1. Definición de vectores de costo por transacción
+    costo_fn_vector = amt_test * multiplicador_lexis
+    costo_fp_vector = ca + clv_vector
+    costo_tp = ca  # Costo fijo administrativo por gestión de alerta
+
+    # 2. Umbral de Bayes Óptimo (BMR)
+    # Se calcula un umbral específico para cada transacción i
+    # Threshold_i = C_FP_i / (C_FN_i - C_TP + C_FP_i)
+    thresholds_bayes = costo_fp_vector / (costo_fn_vector - costo_tp + costo_fp_vector)
+
+    # 3. Clasificación basada en Riesgo Mínimo
+    y_pred_riesgo = (y_prob > thresholds_bayes).astype(int)
+
+    # 4. Cálculo de métricas económicas
+    tp = (y_real == 1) & (y_pred_riesgo == 1)
+    fp = (y_real == 0) & (y_pred_riesgo == 1)
+    fn = (y_real == 1) & (y_pred_riesgo == 0)
+
+    costo_tp_total = tp.sum() * costo_tp
+    costo_fp_total = (fp * costo_fp_vector).sum()
+    costo_fn_total = (fn * costo_fn_vector).sum()
+
+    costo_total = costo_tp_total + costo_fp_total + costo_fn_total
+
+    # Referencia: Dinero perdido si no hubiera ningún modelo (solo Falsos Negativos)
+    costo_base = (y_real * costo_fn_vector).sum()
+    ahorro = costo_base - costo_total
+
+    return {
+        'modelo': nombre_modelo,
+        'costo_total': costo_total,
+        'ahorro': ahorro,
+        'tp': tp.sum(),
+        'fp': fp.sum(),
+        'fn': fn.sum(),
+        'ahorro_pct': (ahorro / costo_base) * 100 if costo_base > 0 else 0
+    }
