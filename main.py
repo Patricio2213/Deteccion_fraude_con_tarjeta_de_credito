@@ -383,6 +383,34 @@ try:
     )
 except Exception as e:
     print(f"Error al calcular delta_tiempo_log: {e}")
+
+print("\n" + "="*60)
+print("Logaritmo de distancia (online y local)")
+try:
+    data["distancia_log_local"] = np.log1p(data["distancia_local"])
+    data["distancia_log_internet"] = np.log1p(data["distancia_internet"])
+    print("Ultimos 3 valores:")
+    print(
+        data[
+            ["distancia_log_local", "distancia_log_internet"]
+        ].tail(3)
+    )
+except Exception as e:
+    print(f"Error al calcular distancia_log: {e}")
+
+print("\n" + "="*60)
+print("Logaritmo de d_cliente_comercio (online y local)")
+try:
+    data["d_cliente_comercio_log_local"] = np.log1p(data["d_cliente_comercio_loc"])
+    data["d_cliente_comercio_log_int"] = np.log1p(data["d_cliente_comercio_int"])
+    print("Ultimos 3 valores:")
+    print(
+        data[
+            ["d_cliente_comercio_log_local", "d_cliente_comercio_log_int"]
+        ].tail(3)
+    )
+except Exception as e:
+    print(f"Error al calcular d_cliente_comercio_logs: {e}")
 #--------------------------------------------------------
 #EDA NUEVAS VARIABLES
 #--------------------------------------------------------
@@ -409,6 +437,11 @@ num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_elimina
 #MODELOS
 #--------------------------------------------------------
 
+print(data.columns)
+print(data["state"].nunique())
+print(data["category"].nunique())
+
+
 
 # --- 1. MUESTREO Y PREPARACIÓN ---
 # ---  FILTRADO TEMPORAL Y MUESTREO ÚNICO (Al inicio de todo) ---
@@ -432,21 +465,29 @@ n_test  = 40000
 train_df = full_train.sample(n=min(n_train, len(full_train)), random_state=42).copy()
 test_df  = full_test.sample(n=min(n_test, len(full_test)), random_state=42).copy()
 
-# Liberamos memoria de los objetos grandes
-del full_train, full_test, data
-import gc
-gc.collect()
+
 
 # --- 2. INGENIERÍA DE VARIABLES TEMPORALES ---
+
+
 for df_temp in [train_df, test_df]:
     df_temp['hour'] = df_temp['trans_date_trans_time'].dt.hour
-    df_temp['day_of_week'] = df_temp['trans_date_trans_time'].dt.dayofweek
-    df_temp['is_weekend'] = (df_temp['day_of_week'] >= 5).astype(int)
+    df_temp['month'] = df_temp['trans_date_trans_time'].dt.month
+
+# Aseguramos que num_columns sea una LISTA de Python
+if isinstance(num_columns, pd.Index):
+    num_columns = num_columns.tolist()
+
+# Ahora sí podemos usar .append() sin errores
+variables_nuevas = ['hour', 'month']
+for var in variables_nuevas:
+    if var not in num_columns:
+        num_columns.append(var)
 
 # --- 3. SELECCIÓN DE VARIABLES Y PREPROCESAMIENTO ---
 target = 'is_fraud'
 columnas_drop = [target, "trans_date_trans_time", "street", "first", "last",
-                 "merchant", "city", "dob", "persona_id","lat","long","merch_lat","merch_long","job","amt","city_pop","velocidad"]
+                 "merchant", "city", "dob", "persona_id","lat","long","merch_lat","merch_long","job","amt","city_pop","velocidad","delta_tiempo_local","delta_tiempo_internet","velocidad_local","velocidad_internet","distanci_local","distancia_internet","d_cliente_comercio_loc","d_cliente_comercio_int","is_first_buy"]
 
 # Creamos los sets de datos base
 X_train_raw = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
@@ -503,17 +544,12 @@ try:
     print(logit_res.summary())
 
     y_prob_logit = logit_res.predict(X_test_stat)
-    evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.5)
+    evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.9975)
 
 except Exception as e:
     print(f"⚠️ Nota de Tesis: La Regresión Logística no convergió por inestabilidad numérica.")
     print(f"Detalle: {e}")
 
-    # Ejemplo para una variable categórica
-print(pd.crosstab(train_df['category'], train_df['is_fraud']))
-import numpy as np
-rank = np.linalg.matrix_rank(X_train_scaled)
-print(f"Columnas totales: {X_train_scaled.shape[1]} | Rango: {rank}")
 
 # B. XGBOOST con OPTIMIZACIÓN BAYESIANA
 print(f"\n🚀 Iniciando Optimización Bayesiana para XGBoost (Rangos: Tayebi & El Kafhali)...")
@@ -534,7 +570,7 @@ xgb_model_final.fit(X_train_scaled, y_train)
 
 # Predicción y Evaluación
 y_prob_xgb = xgb_model_final.predict_proba(X_test_scaled)[:, 1]
-evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.5)
+evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.3202)
 
 # --- 5. MODELOS NO SUPERVISADOS (Isolation Forest & LOF) ---
 print("\n--- Entrenando Modelos de Anomalías ---")
@@ -544,7 +580,7 @@ iso_forest = get_isolation_forest()
 iso_forest.fit(X_train_scaled)
 y_prob_iso = -iso_forest.decision_function(X_test_scaled)
 y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
-evaluar_modelo("Isolation Forest", y_test, y_prob_iso,umbral=0.5)
+evaluar_modelo("Isolation Forest", y_test, y_prob_iso,umbral=0.8840)
 
 # B. LOCAL OUTLIER FACTOR (LOF) - METODOLOGÍA DE RANGOS (20-50)
 print("⏳ Ejecutando LOF con metodología de rangos (Breunig et al.)...")
@@ -570,7 +606,7 @@ y_prob_lof_max = np.maximum.reduce(scores_acumulados)
 # Normalización para el Benchmark
 y_prob_lof_final = (y_prob_lof_max - y_prob_lof_max.min()) / (y_prob_lof_max.max() - y_prob_lof_max.min() + 1e-9)
 
-evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.5)
+evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.2100)
 
 # --- 6. PREPARACIÓN PARA REDES NEURONALES (PyTorch) ---
 X_train_tensor = torch.from_numpy(X_train_scaled.copy()).float()
@@ -614,7 +650,7 @@ for epoch in range(num_epochs):
 mlp_model.eval()
 with torch.no_grad():
     y_prob_mlp = torch.sigmoid(mlp_model(X_test_tensor)).numpy().flatten()
-    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.5)
+    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.9991)
 """
 # --- GRÁFICA DE SALIDA (Separada del flujo de entrenamiento) ---
 plt.figure(figsize=(8, 4))
@@ -661,9 +697,9 @@ ae_model.eval()
 with torch.no_grad():
     reconst_test = ae_model(X_test_tensor)
     mse_test = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1).numpy()
-    evaluar_modelo("Autoencoder", y_test, mse_test)
-"""
+    evaluar_modelo("Autoencoder", y_test, mse_test,umbral=0.0553)
 
+"""
 # --- GRÁFICA DE SALIDA AUTOENCODER ---
 plt.figure(figsize=(8, 4))
 plt.plot(historial_loss_ae, label='Pérdida Reconstrucción (MSE)', color='forestgreen', linewidth=2)
@@ -673,7 +709,36 @@ plt.ylabel('MSE Loss')
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.show()
+"""
 
+#------------------------------------------
+#OBTENER MEJORES UMBRALES
+#------------------------------------------
+# El Autoencoder entrega MSE (errores), necesitamos pasarlo a escala 0-1
+y_prob_ae_norm = (mse_test - mse_test.min()) / (mse_test.max() - mse_test.min() + 1e-9)
+
+# --- DICCIONARIO DE PROBABILIDADES CORREGIDO ---
+modelos_probs = {
+    "Regresión Logística": y_prob_logit, # Corregido de y_prob_reg
+    "XGBoost": y_prob_xgb,
+    "MLP": y_prob_mlp,
+    "Autoencoder": y_prob_ae_norm,       # Usamos la versión normalizada arriba
+    "Isolation Forest": y_prob_iso,      # Corregido de y_prob_if_norm
+    "LOF": y_prob_lof_final
+}
+
+resultados_umbrales = []
+
+for nombre, probas in modelos_probs.items():
+    res = encontrar_mejor_umbral(nombre, y_test, probas)
+    resultados_umbrales.append(res)
+
+# Creamos tabla comparativa
+df_umbrales = pd.DataFrame(resultados_umbrales)
+print("\n=== RESULTADOS DE OPTIMIZACIÓN DE UMBRALES ===")
+print(df_umbrales[['Modelo', 'Umbral_Optimo', 'F1_Score', 'FP', 'FN']])
+
+"""
 # --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
 nombres_columnas = preprocessor.get_feature_names_out()
 
@@ -684,10 +749,16 @@ aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP Balanc
 # No Supervisados / Anomalías
 aplicar_shap_tesis_final(iso_forest, X_test_scaled, nombres_columnas, "Isolation Forest")
 
-aplicar_shap_tesis_final(lof, X_test_scaled, nombres_columnas, "LOF", es_lof=True)
 aplicar_shap_tesis_final(ae_model, X_test_scaled, nombres_columnas, "Autoencoder", es_pytorch=True)
-"""
 
+# Ejecución de la interpretabilidad para LOF
+df_res_lofo = aplicar_lofo_tesis_final(
+    X_train_scaled,
+    X_test_scaled,
+    nombres_columnas,
+    nombre_modelo="LOF_Rango_20_50"
+)
+"""
 # --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
 
 # 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)
@@ -744,3 +815,31 @@ print("\n" + "="*50)
 print("RANKING DE MODELOS POR IMPACTO FINANCIERO")
 print("="*50)
 print(df_resumen[['modelo', 'costo_total', 'ahorro', 'ahorro_pct', 'fp', 'fn']])
+
+info_modelos = {
+    'Regresión Logística': {'probabilidades': y_prob_logit, 'umbral_f1': 0.9975},
+    'XGBoost': {'probabilidades': y_prob_xgb, 'umbral_f1': 0.3202},
+    'MLP': {'probabilidades': y_prob_mlp, 'umbral_f1': 0.9991}, # Umbral actualizado según tu entrenamiento
+    'Autoencoder': {'probabilidades': y_prob_ae_norm, 'umbral_f1': 0.0553}, # Usamos versión normalizada
+    'Isolation Forest': {'probabilidades': y_prob_iso, 'umbral_f1': 0.8840},
+    'LOF': {'probabilidades': y_prob_lof_final, 'umbral_f1': 0.2100}
+}
+
+# Ejecución de la matriz comparativa total (F1 vs Bayes)
+df_final = generar_matriz_comparativa_total(
+    info_modelos,
+    y_test_values,
+    amt_test_vector,
+    clv_test_vector
+)
+
+# Visualización de la tabla definitiva para la tesis
+print("\n=== AUDITORÍA ESTRATÉGICA: IMPACTO ECONÓMICA (F1 VS BAYES) ===")
+print(df_final.to_string(index=False))
+
+#---------------------------------------------
+# PRUEBA DE ROBUSTEZ
+# -------------------------------------------
+# ==============================================================================
+# FASE FINAL: AUDITORÍA DE ROBUSTEZ OUT-OF-TIME (DICIEMBRE)
+# ==============================================================================
