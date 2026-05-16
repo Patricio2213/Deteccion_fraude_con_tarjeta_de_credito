@@ -22,7 +22,7 @@ cat_columns = data.select_dtypes(include=['object', 'string']).drop(columns=cols
 # Creamos la lista de numéricas excluyendo las de arriba
 num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
 
-"""
+
 # EJECUTAR ANÁLISIS DEL DATASET
 
 #  Identificador único de persona
@@ -49,7 +49,7 @@ print("\nMáximo número de tarjetas por persona:")
 
 print("\nRegistros unicos por variable:")
 print(data.nunique())
-
+"""
 #  Calcular el mínimo y el máximo de las fechas
 
 #PERIODO DE DATA TEST
@@ -194,16 +194,6 @@ print(
 )
 
 print("\n" + "="*60)
-print("Cálculo de z-score de amt")
-try:
-    data["zscore"] = zcore_monto(data)
-    print("Z-score de monto calculado exitosamente")
-    print("Primeros 3 z-scores:")
-    print(data["zscore"].head(3))
-except Exception as e:
-    print(f"Error al calcular z-score: {e}")
-
-print("\n" + "="*60)
 print("Edad del cliente")
 try:
     data["edad"] = calcular_edad(data)
@@ -331,7 +321,7 @@ pd.set_option("display.max_rows", None)
 pd.set_option("display.max_columns", None)
 
 print(tabla_kurtosis.to_string(index=False))
-"""
+
 #-----------------------------------------------------------
 #NUEVAS VARIABLES
 #-----------------------------------------------------------
@@ -417,6 +407,8 @@ except Exception as e:
 num_nuevas=["delta_tiempo_log_local","delta_tiempo_log_internet","city_pop_log","amt_log","velocidad_log_local","velocidad_log_internet","distancia_local","distancia_internet","d_cliente_comercio_int","d_cliente_comercio_loc","edad","tasa_categoria","velocidad_internet","velocidad_local","delta_tiempo_local","delta_tiempo_internet"]
 cat_nueva=["es_nuevo","es_online","is_first_internet","is_first_local"]
 """
+"""
+
 graficar_densidad(data,num_nuevas)
 for num_var in num_nuevas:
     make_boxplot(data,num_var)
@@ -436,6 +428,12 @@ num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_elimina
 #--------------------------------------------------------
 #MODELOS
 #--------------------------------------------------------
+
+print("\n" + "="*60)
+print("Cálculo de z-score")
+
+
+
 
 print(data.columns)
 print(data["state"].nunique())
@@ -549,8 +547,7 @@ try:
 except Exception as e:
     print(f"⚠️ Nota de Tesis: La Regresión Logística no convergió por inestabilidad numérica.")
     print(f"Detalle: {e}")
-
-
+"""
 # B. XGBOOST con OPTIMIZACIÓN BAYESIANA
 print(f"\n🚀 Iniciando Optimización Bayesiana para XGBoost (Rangos: Tayebi & El Kafhali)...")
 
@@ -571,7 +568,7 @@ xgb_model_final.fit(X_train_scaled, y_train)
 # Predicción y Evaluación
 y_prob_xgb = xgb_model_final.predict_proba(X_test_scaled)[:, 1]
 evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.3202)
-
+"""
 # --- 5. MODELOS NO SUPERVISADOS (Isolation Forest & LOF) ---
 print("\n--- Entrenando Modelos de Anomalías ---")
 
@@ -581,7 +578,7 @@ iso_forest.fit(X_train_scaled)
 y_prob_iso = -iso_forest.decision_function(X_test_scaled)
 y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
 evaluar_modelo("Isolation Forest", y_test, y_prob_iso,umbral=0.8840)
-
+"""
 # B. LOCAL OUTLIER FACTOR (LOF) - METODOLOGÍA DE RANGOS (20-50)
 print("⏳ Ejecutando LOF con metodología de rangos (Breunig et al.)...")
 
@@ -607,7 +604,7 @@ y_prob_lof_max = np.maximum.reduce(scores_acumulados)
 y_prob_lof_final = (y_prob_lof_max - y_prob_lof_max.min()) / (y_prob_lof_max.max() - y_prob_lof_max.min() + 1e-9)
 
 evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.2100)
-
+"""
 # --- 6. PREPARACIÓN PARA REDES NEURONALES (PyTorch) ---
 X_train_tensor = torch.from_numpy(X_train_scaled.copy()).float()
 X_test_tensor = torch.from_numpy(X_test_scaled.copy()).float()
@@ -615,8 +612,7 @@ y_train_tensor = torch.from_numpy(y_train.values.copy()).float().view(-1, 1)
 
 input_dim = X_train_tensor.shape[1]
 train_loader = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
-
-
+"""
 # --- 7. ENTRENAMIENTO MLP BALANCEADO ---
 conteo_clases = y_train.value_counts()
 peso_fraude = conteo_clases[0] / conteo_clases[1]
@@ -651,7 +647,7 @@ mlp_model.eval()
 with torch.no_grad():
     y_prob_mlp = torch.sigmoid(mlp_model(X_test_tensor)).numpy().flatten()
     evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.9991)
-"""
+
 # --- GRÁFICA DE SALIDA (Separada del flujo de entrenamiento) ---
 plt.figure(figsize=(8, 4))
 plt.plot(historial_loss_mlp, label='Pérdida Entrenamiento', color='royalblue', linewidth=2)
@@ -662,55 +658,79 @@ plt.grid(True, alpha=0.3)
 plt.legend()
 plt.show()
 """
+"""
 # --- 8. ENTRENAMIENTO AUTOENCODER ---
+# --- CONFIGURACIÓN DE DATOS ---
 X_train_normal = X_train_tensor[y_train_tensor.flatten() == 0]
-ae_train_loader = DataLoader(TensorDataset(X_train_normal), batch_size=32, shuffle=True)
+ae_train_loader = DataLoader(
+    TensorDataset(X_train_normal),
+    batch_size=256,  # Batch size más grande sugerido para estabilidad
+    shuffle=True
+)
 
-ae_model = AutoencoderProgresivoVariable(input_dim, c1=25, c2=10, bottleneck=4)
-optimizer_ae = torch.optim.Adam(ae_model.parameters(), lr=0.01)
+# --- INICIALIZACIÓN ---
+ae_model = AutoencoderProgresivoVariable(input_dim, c1=20, c2=10, bottleneck=5)
+
+# Optimizador con Learning Rate reducido y Regularización L2 (weight_decay)
+optimizer_ae = torch.optim.Adam(
+    ae_model.parameters(),
+    lr=0.001,
+    weight_decay=1e-3  # Penalización L2 para mejorar generalización
+)
+
 criterion_ae = torch.nn.MSELoss()
+num_epochs_ae = 50
 
-historial_loss_ae = []
-num_epochs_ae = 10
+# --- BUCLE DE ENTRENAMIENTO ---
 
 print(f"🚀 Entrenando Autoencoder (Solo datos normales)...")
 
+ae_model.train()
+
 for epoch in range(num_epochs_ae):
-    ae_model.train()
+
     running_loss = 0.0
+
     for batch in ae_train_loader:
+
+        # Extraer el Tensor desde el batch que entrega TensorDataset
         batch_X = batch[0]
+
         optimizer_ae.zero_grad()
-        loss = criterion_ae(ae_model(batch_X), batch_X)
+
+        outputs = ae_model(batch_X)
+
+        loss = criterion_ae(outputs, batch_X)
+
         loss.backward()
+
         optimizer_ae.step()
+
         running_loss += loss.item()
 
     avg_loss = running_loss / len(ae_train_loader)
-    historial_loss_ae.append(avg_loss)
 
-    if (epoch + 1) % 5 == 0 or epoch == 0:
+    if (epoch + 1) % 10 == 0 or epoch == 0:
         print(f"   Época [{epoch + 1}/{num_epochs_ae}] - Loss: {avg_loss:.6f}")
-
 # --- EVALUACIÓN ---
 ae_model.eval()
 with torch.no_grad():
+    # Obtener errores de reconstrucción (MSE)
     reconst_test = ae_model(X_test_tensor)
-    mse_test = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1).numpy()
-    evaluar_modelo("Autoencoder", y_test, mse_test,umbral=0.0553)
+    mse_test_torch = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1)
+    mse_test = mse_test_torch.numpy()
 
-"""
-# --- GRÁFICA DE SALIDA AUTOENCODER ---
-plt.figure(figsize=(8, 4))
-plt.plot(historial_loss_ae, label='Pérdida Reconstrucción (MSE)', color='forestgreen', linewidth=2)
-plt.title('Evolución del Error - Autoencoder (Tesis)')
-plt.xlabel('Épocas')
-plt.ylabel('MSE Loss')
-plt.grid(True, alpha=0.3)
-plt.legend()
-plt.show()
-"""
+    # Cálculo del umbral dinámico (Media + 3 * Desv. Estándar)
+    umbral_3sigma = mse_test.mean() + 3 * mse_test.std()
 
+    evaluar_modelo(
+        "Autoencoder Optimizado",
+        y_test,
+        mse_test,
+        umbral=umbral_3sigma
+    )
+"""
+"""
 #------------------------------------------
 #OBTENER MEJORES UMBRALES
 #------------------------------------------
@@ -738,7 +758,7 @@ df_umbrales = pd.DataFrame(resultados_umbrales)
 print("\n=== RESULTADOS DE OPTIMIZACIÓN DE UMBRALES ===")
 print(df_umbrales[['Modelo', 'Umbral_Optimo', 'F1_Score', 'FP', 'FN']])
 
-"""
+
 # --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
 nombres_columnas = preprocessor.get_feature_names_out()
 
@@ -758,7 +778,7 @@ df_res_lofo = aplicar_lofo_tesis_final(
     nombres_columnas,
     nombre_modelo="LOF_Rango_20_50"
 )
-"""
+
 # --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
 
 # 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)
@@ -843,3 +863,4 @@ print(df_final.to_string(index=False))
 # ==============================================================================
 # FASE FINAL: AUDITORÍA DE ROBUSTEZ OUT-OF-TIME (DICIEMBRE)
 # ==============================================================================
+"""

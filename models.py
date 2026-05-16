@@ -78,8 +78,8 @@ class MLP(nn.Module):
 
 def get_isolation_forest():
     return IsolationForest(
-        n_estimators=100,
-        contamination=0.01,  # @ajuste: % de fraude esperado en la base
+        n_estimators=500,
+        contamination=0.0058,  #ajuste: % de fraude esperado en la base
         random_state=42
     )
 
@@ -95,33 +95,37 @@ def get_lof(neighbors):
 
 
 # Autoencoder en PyTorch
+import torch.nn as nn
+
 class AutoencoderProgresivoVariable(nn.Module):
-    def __init__(self, input_dim, c1=25, c2=10, bottleneck=4):
+    def __init__(self, input_dim, c1=20, c2=10, bottleneck=5):
         super(AutoencoderProgresivoVariable, self).__init__()
 
-        # Encoder Progresivo: Entrada -> C1 -> C2 -> Cuello
+        # Encoder: Reducción progresiva con ReLU y Dropout
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, c1),
-            nn.Tanh(),
+            nn.ReLU(),             # ReLU es preferida sobre Tanh en estas capas
+            nn.Dropout(0.2),       # Dropout para evitar el sobreajuste
             nn.Linear(c1, c2),
-            nn.Tanh(),
-            nn.Linear(c2, bottleneck),  # @ajuste: El cuello de botella final
-            nn.Tanh()
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(c2, bottleneck),
+            nn.ReLU()
         )
 
-        # Decoder Simétrico: Cuello -> C2 -> C1 -> Entrada
+        # Decoder: Reconstrucción simétrica
         self.decoder = nn.Sequential(
             nn.Linear(bottleneck, c2),
-            nn.Tanh(),
+            nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(c2, c1),
-            nn.Tanh(),
-            nn.Linear(c1, input_dim)
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(c1, input_dim) # Salida lineal para datos estandarizado [3]
         )
 
     def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
-        return x
+        return self.decoder(self.encoder(x))
 
 
 def evaluar_modelo(nombre, y_real, y_prob, umbral=None):

@@ -342,17 +342,29 @@ def distancia_cliente_comercio(df):
 
     return df
 
-def zcore_monto(data):
-    # 1. prom por tarjeta
-    mean_amt = data.groupby("cc_num")["amt"].transform("mean")
+def zscore_historico_por_cliente( #calcula usando historial anterior, no incluye la información del "futuro"
+    df,
+    columna,
+    cliente_col="cc_num",
+    fecha_col="trans_date_trans_time",
+    min_periods=3
+):
+    df = df.copy()
+    df = df.sort_values([cliente_col, fecha_col])
 
-    # 2. sd por tarjeta
-    std_amt = data.groupby("cc_num")["amt"].transform("std")
+    media_hist = (
+        df.groupby(cliente_col)[columna]
+          .transform(lambda x: x.shift(1).expanding(min_periods=min_periods).mean())
+    )
 
-    # 3. zcore_monto
-    resultado = (data["amt"] - mean_amt) / std_amt
+    std_hist = (
+        df.groupby(cliente_col)[columna]
+          .transform(lambda x: x.shift(1).expanding(min_periods=min_periods).std())
+    )
 
-    return resultado
+    z = (df[columna] - media_hist) / (std_hist + 1e-9)
+
+    return z.fillna(0)
 
 #POSIBLES NUEVAS VARIABLES PARA NUESTRO ESTUDIO
 def calcular_edad(data): #analizar si ciertos rangos de edad son más vulnerables al fraude
