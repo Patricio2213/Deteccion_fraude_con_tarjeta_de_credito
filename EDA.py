@@ -19,12 +19,12 @@ def graficar_densidad(df, columnas_num):
             data=df,
             x=col,
             fill=True,
-            color="teal",  # Un color sobrio para la curva
+            color="teal",
             alpha=0.4,
             linewidth=2.5
         )
 
-        # Configuración visual
+
         #plt.title(f"Distribución General: {col}", fontsize=14)
         plt.xlabel(col)
         plt.ylabel("Densidad")
@@ -153,7 +153,7 @@ def make_barplot(dataframe, cat_var,top):
 
     # Añadir porcentajes a las barras
     for i, valor in enumerate(percentages):
-        my_fig.text( valor + 0.5,i, f"{valor:.2f}%", fontsize=16, va='center', ha='center',
+        my_fig.text( valor + 1,i, f"{valor:.2f}%", fontsize=16, va='center', ha='center',
                     color='black', weight='bold')
 
     # Añadir títulos a los ejes

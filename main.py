@@ -5,6 +5,12 @@ from procesamiento_bases import *
 from EDA import *
 from models import *
 import statsmodels.api as sm
+import matplotlib.pyplot as plt
+plt.rcParams.update({
+    'figure.facecolor': 'white',
+    'axes.facecolor': 'white',
+    'axes.grid': False          # False para quitar las cuadriculas
+})
 
 #Carga de bases
 data_train=buscar_y_cargar("fraudTrain.csv")
@@ -112,7 +118,7 @@ del data_train
 
 #forzar limpieza
 gc.collect()
-"""
+
 #Gráficos
 
 print("\n" + "="*60)
@@ -121,30 +127,23 @@ print("Resumen estadístico")
 
 print("\n" + "="*60)
 print("Análisis Univariado")
-#make_histogram(data,"amt")
-#graficar_densidad(data,num_columns)
-#for num_var in num_columns:
-  #  make_boxplot(data,num_var)
+make_histogram(data,"amt")
+graficar_densidad(data,num_columns)
+for num_var in num_columns:
+    make_boxplot(data,num_var)
 
-#for cat_var in cat_columns:
-#make_barplot(data,"category",top=20) #univariado
+for cat_var in cat_columns:
+    make_barplot(data,"category",top=20) #univariado
 
 #ANÁLISIS MULTIVARIADO
 
-#boxplots_con_tabla(data, num_columns,target="is_fraud")
+boxplots_con_tabla(data, num_columns,target="is_fraud")
 
-#make_stacked_barplots(data, cat_columns, top=10)
-#print("\n Matriz de correlación...")
-#make_heat_map(data,num_columns)#multivariado
+make_stacked_barplots(data, cat_columns, top=10)
+print("\n Matriz de correlación...")
+make_heat_map(data,num_columns)#multivariado
 
-#graficar_temporalidad_fraude(data)
-#grafico_tasa_por_variable(data, 'category')
-#grafico_tasa_por_variable(data, 'es_nuevo')# Analizando Riesgo en Comercios Nuevos
-
-#print("Ranking de Categorías más Peligrosas")
-#graficar_riesgo_porcategoria(data, "category") #en que categorías hay + fraude?
-
-#grafico_tasa_por_variable(data, "gender") #influye el genero en la probabilidad?
+graficar_temporalidad_fraude(data)
 
 #print("\n" + "="*70)
 #print("EXPLORACIÓN PROFUNDA")
@@ -154,9 +153,9 @@ print("Análisis Univariado")
 
 #make_scatter_plot(data,var_claves_num)#multivariado  #DA PROBLEMAS, LO ASOCIO A LA CANTIDAD DE OBSERVACIONES
 
-#make_stacked_barplots(data, cat_columns, top=10)#multivariado #NO APORTA MUCHA INFORMACIÓN DADO EL DESBALANCE
+make_stacked_barplots(data, cat_columns, top=10)#multivariado #NO APORTA MUCHA INFORMACIÓN DADO EL DESBALANCE
 
-"""
+
 # Creación de nuevas variables
 
 data = distancia_entre_comercios(data)
@@ -247,6 +246,14 @@ data["es_online"] = data["category"].isin(categorias_net).astype(int)
 #print(data["es_online"].value_counts(normalize=True) * 100)
 
 #grafico_tasa_por_variable(data, "es_online")
+#grafico_tasa_por_variable(data, 'category')
+#grafico_tasa_por_variable(data, 'es_nuevo')# Analizando Riesgo en Comercios Nuevos
+
+print("Ranking de Categorías más Peligrosas")
+#graficar_riesgo_porcategoria(data, "category") #en que categorías hay + fraude?
+
+#grafico_tasa_por_variable(data, "gender") #influye el genero en la probabilidad?
+
 """
 print("\n" + "="*60)
 print("Investiguemos que variables podrían necesitar logaritmo")
@@ -407,12 +414,12 @@ except Exception as e:
 num_nuevas=["delta_tiempo_log_local","delta_tiempo_log_internet","city_pop_log","amt_log","velocidad_log_local","velocidad_log_internet","distancia_local","distancia_internet","d_cliente_comercio_int","d_cliente_comercio_loc","edad","tasa_categoria","velocidad_internet","velocidad_local","delta_tiempo_local","delta_tiempo_internet"]
 cat_nueva=["es_nuevo","es_online","is_first_internet","is_first_local"]
 
-"""
+
 
 graficar_densidad(data,num_nuevas)
 for num_var in num_nuevas:
     make_boxplot(data,num_var)
-"""
+
 
 
 
@@ -425,6 +432,7 @@ cat_columns = data.select_dtypes(include=['object', 'string']).drop(columns=cols
 
 # Actualizar la lista de numéricas excluyendo las de arriba
 num_columns = data.select_dtypes(include=['number']).drop(columns=cols_a_eliminar, errors='ignore').columns
+
 #--------------------------------------------------------
 #MODELOS
 #--------------------------------------------------------
@@ -759,14 +767,14 @@ df_umbrales = pd.DataFrame(resultados_umbrales)
 print("\n=== RESULTADOS DE OPTIMIZACIÓN DE UMBRALES ===")
 print(df_umbrales[['Modelo', 'Umbral_Optimo', 'F1_Score', 'FP', 'FN']])
 
-"""
+
 # --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
 nombres_columnas = preprocessor.get_feature_names_out()
 
 # Supervisados
-aplicar_shap_tesis_final(xgb_model_final, X_test_scaled, nombres_columnas, "XGBoost Optimizado")
-aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP Balanceado", es_pytorch=True)
-
+aplicar_shap_tesis_final(xgb_model_final, X_test_scaled, nombres_columnas, "XGBoost ")
+aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP ", es_pytorch=True)
+aplicar_shap_tesis_final(logit_mod, X_test_scaled, nombres_columnas, "Regresión Logística")
 # No Supervisados / Anomalías
 aplicar_shap_tesis_final(iso_forest, X_test_scaled, nombres_columnas, "Isolation Forest")
 
@@ -779,7 +787,7 @@ df_res_lofo = aplicar_lofo_tesis_final(
     nombres_columnas,
     nombre_modelo="LOF_Rango_20_50"
 )
-"""
+
 # --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
 
 # 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)

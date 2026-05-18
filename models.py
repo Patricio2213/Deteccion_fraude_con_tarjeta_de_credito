@@ -218,7 +218,7 @@ def aplicar_shap_tesis_final(model, X_data_numpy, feature_names, nombre_modelo="
         pd.reset_option('display.max_rows')
 
         # --- GENERACIÓN DEL GRÁFICO (SOLO TOP 15) ---
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(12, 8),facecolor="white")
         # Asignamos los nombres para el gráfico
         if hasattr(shap_values, "values"):
             shap_values.feature_names = list(feature_names)
@@ -228,10 +228,18 @@ def aplicar_shap_tesis_final(model, X_data_numpy, feature_names, nombre_modelo="
             shap.plots.bar(shap_values[:, :, 1], show=False, max_display=15)
         else:
             shap.plots.bar(shap_values, show=False, max_display=15)
+        ax = plt.gca()
+        ax.set_facecolor('white')
 
         plt.title(f"Top 15 Variables de Mayor Impacto (SHAP) - {nombre_modelo}")
         plt.tight_layout()
-        plt.savefig(f"shap_top15_{nombre_modelo.lower().replace(' ', '_')}.png", dpi=300)
+        plt.savefig(
+            f"shap_top15_{nombre_modelo.lower().replace(' ', '_')}.png",
+            dpi=300,
+            bbox_inches='tight',
+            facecolor='white',
+            edgecolor='none'
+        )
         plt.show()
 
     except Exception as e:
@@ -344,7 +352,10 @@ def aplicar_lofo_tesis_final(X_train_scaled, X_test_scaled, feature_names, nombr
         plt.title(f"Top 15 Variables de Mayor Impacto (LOFO) - {nombre_modelo}")
         plt.tight_layout()
 
-        plt.savefig(f"lofo_top15_{nombre_modelo.lower().replace(' ', '_')}.png", dpi=300)
+        plt.savefig(f"lofo_top15_{nombre_modelo.lower().replace(' ', '_')}.png", dpi=300,
+            bbox_inches='tight',
+            facecolor='white',
+            edgecolor='none')
         plt.show()
 
         return df_total
