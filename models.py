@@ -89,7 +89,7 @@ def get_lof(neighbors):
     return LocalOutlierFactor(
         n_neighbors=neighbors,
         novelty=True,         # Necesario para usarlo en el set de testeo (X_test)
-        contamination=0.01,   # Proporción estimada de fraude
+        contamination=0.0058,   # Proporción estimada de fraude
         n_jobs=-1             # Uso de todos los núcleos del procesador
     )
 

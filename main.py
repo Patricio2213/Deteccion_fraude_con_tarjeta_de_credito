@@ -192,7 +192,7 @@ print(
         ]
     ].tail(3).to_string()
 )
-
+"""
 print("\n" + "="*60)
 print("Edad del cliente")
 try:
@@ -230,7 +230,7 @@ print(
     .head(3)
     .to_string()
 )
-"""
+
 #TABLAS SIN UNSO ACTUALMENTE PQ NO SE HAN AÑADIDO LAS NUEVAS
 
 # Definir categorías online
@@ -321,7 +321,7 @@ pd.set_option("display.max_rows", None)
 pd.set_option("display.max_columns", None)
 
 print(tabla_kurtosis.to_string(index=False))
-
+"""
 #-----------------------------------------------------------
 #NUEVAS VARIABLES
 #-----------------------------------------------------------
@@ -406,7 +406,7 @@ except Exception as e:
 #--------------------------------------------------------
 num_nuevas=["delta_tiempo_log_local","delta_tiempo_log_internet","city_pop_log","amt_log","velocidad_log_local","velocidad_log_internet","distancia_local","distancia_internet","d_cliente_comercio_int","d_cliente_comercio_loc","edad","tasa_categoria","velocidad_internet","velocidad_local","delta_tiempo_local","delta_tiempo_internet"]
 cat_nueva=["es_nuevo","es_online","is_first_internet","is_first_local"]
-"""
+
 """
 
 graficar_densidad(data,num_nuevas)
@@ -466,6 +466,7 @@ test_df  = full_test.sample(n=min(n_test, len(full_test)), random_state=42).copy
 
 
 # --- 2. INGENIERÍA DE VARIABLES TEMPORALES ---
+
 
 
 for df_temp in [train_df, test_df]:
@@ -542,12 +543,12 @@ try:
     print(logit_res.summary())
 
     y_prob_logit = logit_res.predict(X_test_stat)
-    evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.9975)
+    evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.9968)
 
 except Exception as e:
     print(f"⚠️ Nota de Tesis: La Regresión Logística no convergió por inestabilidad numérica.")
     print(f"Detalle: {e}")
-"""
+
 # B. XGBOOST con OPTIMIZACIÓN BAYESIANA
 print(f"\n🚀 Iniciando Optimización Bayesiana para XGBoost (Rangos: Tayebi & El Kafhali)...")
 
@@ -567,8 +568,8 @@ xgb_model_final.fit(X_train_scaled, y_train)
 
 # Predicción y Evaluación
 y_prob_xgb = xgb_model_final.predict_proba(X_test_scaled)[:, 1]
-evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.3202)
-"""
+evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.4112)
+
 # --- 5. MODELOS NO SUPERVISADOS (Isolation Forest & LOF) ---
 print("\n--- Entrenando Modelos de Anomalías ---")
 
@@ -577,8 +578,8 @@ iso_forest = get_isolation_forest()
 iso_forest.fit(X_train_scaled)
 y_prob_iso = -iso_forest.decision_function(X_test_scaled)
 y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
-evaluar_modelo("Isolation Forest", y_test, y_prob_iso,umbral=0.8840)
-"""
+evaluar_modelo("Isolation Forest", y_test, y_prob_iso,umbral=0.8025)
+
 # B. LOCAL OUTLIER FACTOR (LOF) - METODOLOGÍA DE RANGOS (20-50)
 print("⏳ Ejecutando LOF con metodología de rangos (Breunig et al.)...")
 
@@ -603,8 +604,8 @@ y_prob_lof_max = np.maximum.reduce(scores_acumulados)
 # Normalización para el Benchmark
 y_prob_lof_final = (y_prob_lof_max - y_prob_lof_max.min()) / (y_prob_lof_max.max() - y_prob_lof_max.min() + 1e-9)
 
-evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.2100)
-"""
+evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.3021)
+
 # --- 6. PREPARACIÓN PARA REDES NEURONALES (PyTorch) ---
 X_train_tensor = torch.from_numpy(X_train_scaled.copy()).float()
 X_test_tensor = torch.from_numpy(X_test_scaled.copy()).float()
@@ -612,7 +613,7 @@ y_train_tensor = torch.from_numpy(y_train.values.copy()).float().view(-1, 1)
 
 input_dim = X_train_tensor.shape[1]
 train_loader = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
-"""
+
 # --- 7. ENTRENAMIENTO MLP BALANCEADO ---
 conteo_clases = y_train.value_counts()
 peso_fraude = conteo_clases[0] / conteo_clases[1]
@@ -646,8 +647,8 @@ for epoch in range(num_epochs):
 mlp_model.eval()
 with torch.no_grad():
     y_prob_mlp = torch.sigmoid(mlp_model(X_test_tensor)).numpy().flatten()
-    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.9991)
-
+    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.9910)
+"""
 # --- GRÁFICA DE SALIDA (Separada del flujo de entrenamiento) ---
 plt.figure(figsize=(8, 4))
 plt.plot(historial_loss_mlp, label='Pérdida Entrenamiento', color='royalblue', linewidth=2)
@@ -658,7 +659,7 @@ plt.grid(True, alpha=0.3)
 plt.legend()
 plt.show()
 """
-"""
+
 # --- 8. ENTRENAMIENTO AUTOENCODER ---
 # --- CONFIGURACIÓN DE DATOS ---
 X_train_normal = X_train_tensor[y_train_tensor.flatten() == 0]
@@ -729,8 +730,8 @@ with torch.no_grad():
         mse_test,
         umbral=umbral_3sigma
     )
-"""
-"""
+
+
 #------------------------------------------
 #OBTENER MEJORES UMBRALES
 #------------------------------------------
@@ -758,7 +759,7 @@ df_umbrales = pd.DataFrame(resultados_umbrales)
 print("\n=== RESULTADOS DE OPTIMIZACIÓN DE UMBRALES ===")
 print(df_umbrales[['Modelo', 'Umbral_Optimo', 'F1_Score', 'FP', 'FN']])
 
-
+"""
 # --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
 nombres_columnas = preprocessor.get_feature_names_out()
 
@@ -778,7 +779,7 @@ df_res_lofo = aplicar_lofo_tesis_final(
     nombres_columnas,
     nombre_modelo="LOF_Rango_20_50"
 )
-
+"""
 # --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
 
 # 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)
@@ -863,4 +864,3 @@ print(df_final.to_string(index=False))
 # ==============================================================================
 # FASE FINAL: AUDITORÍA DE ROBUSTEZ OUT-OF-TIME (DICIEMBRE)
 # ==============================================================================
-"""
