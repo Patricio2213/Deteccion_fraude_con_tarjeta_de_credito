@@ -568,7 +568,7 @@ xgb_model_final.fit(X_train_scaled, y_train)
 
 # Predicción y Evaluación
 y_prob_xgb = xgb_model_final.predict_proba(X_test_scaled)[:, 1]
-evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.4112)
+evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.4119)
 
 # --- 5. MODELOS NO SUPERVISADOS (Isolation Forest & LOF) ---
 print("\n--- Entrenando Modelos de Anomalías ---")
@@ -647,7 +647,7 @@ for epoch in range(num_epochs):
 mlp_model.eval()
 with torch.no_grad():
     y_prob_mlp = torch.sigmoid(mlp_model(X_test_tensor)).numpy().flatten()
-    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.9910)
+    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.9995)
 """
 # --- GRÁFICA DE SALIDA (Separada del flujo de entrenamiento) ---
 plt.figure(figsize=(8, 4))
@@ -861,6 +861,118 @@ print(df_final.to_string(index=False))
 #---------------------------------------------
 # PRUEBA DE ROBUSTEZ
 # -------------------------------------------
-# ==============================================================================
-# FASE FINAL: AUDITORÍA DE ROBUSTEZ OUT-OF-TIME (DICIEMBRE)
-# ==============================================================================
+
+print("\n" + "="*60)
+print("📌 INICIANDO PRUEBA DE ROBUSTEZ INDEPENDIENTE: DICIEMBRE 2020")
+print("="*60)
+
+# 1. Extracción y filtrado del universo exclusivo de diciembre de 2020
+fecha_rob_inicio = '2020-12-01 00:00:00'
+fecha_rob_fin    = '2020-12-31 23:59:34'
+
+df_robustez_raw = data[(data['trans_date_trans_time'] >= fecha_rob_inicio) &
+                       (data['trans_date_trans_time'] <= fecha_rob_fin)].copy()
+
+print(f"🔹 Registros encontrados para la prueba de estrés de diciembre: {len(df_robustez_raw)}")
+
+# 2. Ingeniería de variables temporales exclusiva para el set de robustez
+df_robustez_raw['hour'] = df_robustez_raw['trans_date_trans_time'].dt.hour
+df_robustez_raw['month'] = df_robustez_raw['trans_date_trans_time'].dt.month
+
+# 3. Separación de matriz de características y etiquetas reales
+X_robust_raw = df_robustez_raw.drop(columns=[col for col in columnas_drop if col in df_robustez_raw.columns])
+y_robust_real = df_robustez_raw[target].values
+
+# 4. Transformación de los datos usando el preprocessor original (YA ENTRENADO)
+X_robust_scaled = preprocessor.transform(X_robust_raw)
+
+# 5. Vectores financieros específicos y exclusivos para el mes de diciembre
+amt_robust_vector = df_robustez_raw['amt'].values
+clv_robust_vector = df_robustez_raw['cc_num'].apply(calc_clv_dinamico).values
+
+# 6. Preparación de tensores en PyTorch para los modelos de redes neuronales
+X_robust_tensor = torch.from_numpy(X_robust_scaled.copy()).float()
+
+# ------------------------------------------------------------------------------
+# PARTE A: EVALUACIÓN DE ROBUSTEZ TÉCNICA (Umbrales Fijos Obtenidos en Entrenamiento)
+# ------------------------------------------------------------------------------
+print("\n📈 [ROBUSTEZ TÉCNICA] Evaluación en Diciembre con Umbrales Previos:")
+
+resultados_robustez_tecnica = []
+
+if 'logit_res' in locals():
+    # Para Statsmodels agregamos la constante obligatoria
+    X_robust_stat = sm.add_constant(pd.DataFrame(X_robust_scaled, columns=preprocessor.get_feature_names_out()))
+    X_robust_stat = X_robust_stat.reindex(columns=X_train_stat.columns, fill_value=0)
+    y_prob_logit_rob = logit_res.predict(X_robust_stat)
+    res = evaluar_modelo("Regresión Logística (Rob)", y_robust_real, y_prob_logit_rob, umbral=info_modelos['Regresión Logística']['umbral_f1'])
+    resultados_robustez_tecnica.append(res)
+
+if 'xgb_model_final' in locals():
+    y_prob_xgb_rob = xgb_model_final.predict_proba(X_robust_scaled)[:, 1]
+    res = evaluar_modelo("XGBoost (Rob)", y_robust_real, y_prob_xgb_rob, umbral=info_modelos['XGBoost']['umbral_f1'])
+    resultados_robustez_tecnica.append(res)
+
+if 'mlp_model' in locals():
+    mlp_model.eval()
+    with torch.no_grad():
+        y_prob_mlp_rob = torch.sigmoid(mlp_model(X_robust_tensor)).numpy().flatten()
+    res = evaluar_modelo("MLP (Rob)", y_robust_real, y_prob_mlp_rob, umbral=info_modelos['MLP']['umbral_f1'])
+    resultados_robustez_tecnica.append(res)
+
+if 'iso_forest' in locals():
+    y_prob_iso_rob = -iso_forest.decision_function(X_robust_scaled)
+    y_prob_iso_rob_norm = (y_prob_iso_rob - y_prob_iso_rob.min()) / (y_prob_iso_rob.max() - y_prob_iso_rob.min() + 1e-9)
+    res = evaluar_modelo("Isolation Forest (Rob)", y_robust_real, y_prob_iso_rob_norm, umbral=info_modelos['Isolation Forest']['umbral_f1'])
+    resultados_robustez_tecnica.append(res)
+
+if 'rango_vecinos' in locals():
+    scores_acum_rob = []
+    for k in rango_vecinos:
+        lof = get_lof(neighbors=k)
+        lof.fit(X_train_scaled) # Mantiene la vecindad de Train
+        scores_acum_rob.append(-lof.score_samples(X_robust_scaled))
+    y_prob_lof_rob_max = np.maximum.reduce(scores_acum_rob)
+    y_prob_lof_rob_norm = (y_prob_lof_rob_max - y_prob_lof_rob_max.min()) / (y_prob_lof_rob_max.max() - y_prob_lof_rob_max.min() + 1e-9)
+    res = evaluar_modelo("LOF (Rob)", y_robust_real, y_prob_lof_rob_norm, umbral=info_modelos['LOF']['umbral_f1'])
+    resultados_robustez_tecnica.append(res)
+
+if 'ae_model' in locals():
+    ae_model.eval()
+    with torch.no_grad():
+        reconst_rob = ae_model(X_robust_tensor)
+        mse_rob_torch = torch.mean((X_robust_tensor - reconst_rob) ** 2, dim=1)
+        mse_robust_test = mse_rob_torch.numpy()
+    y_prob_ae_rob_norm = (mse_robust_test - mse_robust_test.min()) / (mse_robust_test.max() - mse_robust_test.min() + 1e-9)
+    res = evaluar_modelo("Autoencoder (Rob)", y_robust_real, y_prob_ae_rob_norm, umbral=info_modelos['Autoencoder']['umbral_f1'])
+    resultados_robustez_tecnica.append(res)
+
+# Matriz resumen técnica del estrés temporal
+df_rob_tec = pd.DataFrame(resultados_robustez_tecnica)
+print("\n📊 [RESUMEN MATRICES - ROBUSTEZ DICIEMBRE 2020]:")
+print(df_rob_tec[['nombre', 'auc_roc', 'tp', 'fp', 'tn', 'fn']])
+
+
+# ------------------------------------------------------------------------------
+# PARTE B: EVALUACIÓN DE ROBUSTEZ FINANCIERA (Auditoría de Impacto Económico)
+# ------------------------------------------------------------------------------
+print("\n💰 [ROBUSTEZ FINANCIERA] Auditoría de Decisiones Estratégicas (F1 VS BAYES):")
+
+info_modelos_robustez = {}
+if 'y_prob_logit_rob' in locals(): info_modelos_robustez['Regresión Logística'] = {'probabilidades': y_prob_logit_rob, 'umbral_f1': info_modelos['Regresión Logística']['umbral_f1']}
+if 'y_prob_xgb_rob' in locals():   info_modelos_robustez['XGBoost'] = {'probabilidades': y_prob_xgb_rob, 'umbral_f1': info_modelos['XGBoost']['umbral_f1']}
+if 'y_prob_mlp_rob' in locals():   info_modelos_robustez['MLP'] = {'probabilidades': y_prob_mlp_rob, 'umbral_f1': info_modelos['MLP']['umbral_f1']}
+if 'y_prob_iso_rob_norm' in locals(): info_modelos_robustez['Isolation Forest'] = {'probabilidades': y_prob_iso_rob_norm, 'umbral_f1': info_modelos['Isolation Forest']['umbral_f1']}
+if 'y_prob_lof_rob_norm' in locals(): info_modelos_robustez['LOF'] = {'probabilidades': y_prob_lof_rob_norm, 'umbral_f1': info_modelos['LOF']['umbral_f1']}
+if 'y_prob_ae_rob_norm' in locals():  info_modelos_robustez['Autoencoder'] = {'probabilidades': y_prob_ae_rob_norm, 'umbral_f1': info_modelos['Autoencoder']['umbral_f1']}
+
+# Ejecutamos tu función de matriz comparativa total pasándole los datos de diciembre
+df_final_robustez = generar_matriz_comparativa_total(
+    info_modelos_robustez,
+    y_robust_real,
+    amt_robust_vector,
+    clv_robust_vector
+)
+
+print(df_final_robustez.to_string(index=False))
+print("\n" + "="*60 + "\n")
