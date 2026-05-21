@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import torch.nn as nn
 from sklearn.linear_model import LogisticRegression
+import itertools
 from xgboost import XGBClassifier
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
@@ -11,6 +12,8 @@ import optuna
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 import shap
 import matplotlib.pyplot as plt
+from sklearn.metrics import roc_auc_score
+from scipy.stats import f, rankdata, norm
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.functional as F
@@ -163,7 +166,7 @@ def evaluar_modelo(nombre, y_real, y_prob, umbral=None):
 
 
 def aplicar_shap_tesis_final(model, X_data_numpy, feature_names, nombre_modelo="Modelo", es_pytorch=False,
-                             es_lof=False):
+                             es_lof=False, es_statsmodels=False):  # <--- Agregamos este parámetro nuevo
     print(f"\n" + "=" * 40)
     print(f"🧐 ANALIZANDO INTERPRETABILIDAD: {nombre_modelo}")
     print("=" * 40)
@@ -188,6 +191,16 @@ def aplicar_shap_tesis_final(model, X_data_numpy, feature_names, nombre_modelo="
             masker = shap.maskers.Independent(X_data_numpy, max_samples=100)
             explainer = shap.Explainer(predict_fn_torch, masker)
             shap_values = explainer(X_sample_np)
+
+        elif es_statsmodels:
+            def predict_fn_logit(x_np):
+                x_stat = np.column_stack([np.ones(x_np.shape[0]), x_np])
+                return model.predict(x_stat)
+
+            masker = shap.maskers.Independent(X_data_numpy, max_samples=100)
+            explainer = shap.Explainer(predict_fn_logit, masker)
+            shap_values = explainer(X_sample_np)
+
         elif es_lof:
             def predict_fn_lof(x_np):
                 return -model.score_samples(x_np)
@@ -208,31 +221,34 @@ def aplicar_shap_tesis_final(model, X_data_numpy, feature_names, nombre_modelo="
         else:
             vals = np.abs(shap_values).mean(0)
 
-        # Crear DataFrame con el 100% de las variables
+
         df_total = pd.DataFrame(list(zip(feature_names, vals)), columns=['Variable', 'Impacto_Medio_SHAP'])
         df_total = df_total.sort_values(by='Impacto_Medio_SHAP', ascending=False)
 
         print(f"\n📋 IMPACTO TOTAL DE VARIABLES (Orden descendente) - {nombre_modelo}:")
-        pd.set_option('display.max_rows', None)  # Para que PyCharm no esconda filas
+        pd.set_option('display.max_rows', None)
         print(df_total.to_string(index=False))
         pd.reset_option('display.max_rows')
 
-        # --- GENERACIÓN DEL GRÁFICO (SOLO TOP 15) ---
-        plt.figure(figsize=(12, 8),facecolor="white")
-        # Asignamos los nombres para el gráfico
+        # --- GENERACIÓN DEL GRÁFICO (SOLO TOP 15 CON CORRECCIÓN DE ALTURA) ---
+        plt.figure(figsize=(10, 11), facecolor="white")
         if hasattr(shap_values, "values"):
             shap_values.feature_names = list(feature_names)
 
-        # max_display=15 hace la magia de limpiar el gráfico automáticamente
         if hasattr(shap_values, "values") and len(shap_values.values.shape) == 3:
             shap.plots.bar(shap_values[:, :, 1], show=False, max_display=15)
         else:
             shap.plots.bar(shap_values, show=False, max_display=15)
+
         ax = plt.gca()
         ax.set_facecolor('white')
 
-        plt.title(f"Top 15 Variables de Mayor Impacto (SHAP) - {nombre_modelo}")
-        plt.tight_layout()
+
+        plt.subplots_adjust(left=0.35, top=0.90)
+
+
+        plt.gcf().suptitle(f"SHAP - {nombre_modelo}", fontsize=14, y=0.95)
+
         plt.savefig(
             f"shap_top15_{nombre_modelo.lower().replace(' ', '_')}.png",
             dpi=300,
@@ -433,3 +449,92 @@ def generar_matriz_comparativa_total(modelos_data, y_real, amt_test, clv_vector,
 
     return pd.DataFrame(comparativa)
 
+
+# ==============================================================================
+# 2. ALGORITMO CORE: TEST DE IMAN-DAVENPORT--HOML
+# ==============================================================================
+def pipeline_iman_davenport_holm_puro(df_performance, metrica_nombre, buscar_maximo=True):
+
+    matrix = df_performance.to_numpy()
+    N, k = matrix.shape
+    alpha_global = 0.05
+
+    print("\n" + "=" * 75)
+    print(f"🔬 PIPELINE ESTADÍSTICO PURO: {metrica_nombre.upper()}")
+    print("=" * 75)
+
+    if buscar_maximo:
+        rangos = np.array([rankdata(-row) for row in matrix])
+    else:
+        rangos = np.array([rankdata(row) for row in matrix])
+
+    promedio_rangos = np.mean(rangos, axis=0)
+
+    sum_cuadrados_rangos = np.sum(promedio_rangos ** 2)
+    estadistico_friedman = (12 * N / (k * (k + 1))) * (sum_cuadrados_rangos - (k * (k + 1) ** 2 / 4))
+
+    numerador = (N - 1) * estadistico_friedman
+    denominador = N * (k - 1) - estadistico_friedman
+    estadistico_iman = numerador / denominador
+
+    df1 = k - 1
+    df2 = (k - 1) * (N - 1)
+    p_valor_global = f.sf(estadistico_iman, df1, df2)
+
+    dict_rangos = {df_performance.columns[i]: promedio_rangos[i] for i in range(k)}
+    df_ranks = pd.DataFrame(list(dict_rangos.items()), columns=['Modelo', 'Rango_Promedio']).sort_values(
+        by='Rango_Promedio')
+
+    print(f"\n[TEST GLOBAL - IMAN-DAVENPORT]")
+    print(f"• Estadístico F: {estadistico_iman:.4f}")
+    print(f"• Grados de Libertad: ({df1}, {df2})")
+    print(f"• p-valor Global: {p_valor_global:.6e}")
+    print("\nRanking de Rangos Promedios:")
+    print(df_ranks.to_string(index=False))
+
+    if p_valor_global >= alpha_global:
+        print(f"\nConclusión: No se rechaza H0. No hay diferencias significativas.")
+        return df_ranks, None
+
+    print(f"\nConclusión: Rechazamos H0 (p < {alpha_global}). Existen diferencias significativas.")
+    print(f"\n[TEST POST-HOC - HOLM BASADO EN DISTANCIA DE RANGOS]")
+
+    modelos = df_performance.columns.tolist()
+    parejas = list(itertools.combinations(range(k), 2))
+
+    error_estandar = np.sqrt((k * (k + 1)) / (6 * N))
+    resultados_parejas = []
+
+    for i, j in parejas:
+        mod1_name = modelos[i]
+        mod2_name = modelos[j]
+
+        z_val = abs(promedio_rangos[i] - promedio_rangos[j]) / error_estandar
+        p_val_base = 2 * (1 - norm.cdf(z_val))
+
+        resultados_parejas.append({
+            'Comparación': f"{mod1_name} vs {mod2_name}",
+            'p_val_original': p_val_base
+        })
+
+    df_holm = pd.DataFrame(resultados_parejas)
+    df_holm = df_holm.sort_values(by='p_val_original').reset_index(drop=True)
+
+    m = len(df_holm)
+    p_valores_corregidos = []
+
+    for idx, row in df_holm.iterrows():
+        p_corregido = row['p_val_original'] * (m - idx)
+        p_corregido = min(p_corregido, 1.0)
+
+        if idx > 0:
+            p_corregido = max(p_corregido, p_valores_corregidos[-1])
+
+        p_valores_corregidos.append(p_corregido)
+
+    df_holm['p_val_Holm'] = p_valores_corregidos
+    df_holm['Diferencia_Significativa'] = df_holm['p_val_Holm'] < alpha_global
+
+    print(df_holm[['Comparación', 'p_val_original', 'p_val_Holm', 'Diferencia_Significativa']].to_string(index=False))
+
+    return df_ranks, df_holm

@@ -1,5 +1,6 @@
 #Carga de funciones
 import gc
+
 from Subida_data import *
 from procesamiento_bases import *
 from EDA import *
@@ -137,13 +138,13 @@ for cat_var in cat_columns:
 
 #ANÁLISIS MULTIVARIADO
 
-boxplots_con_tabla(data, num_columns,target="is_fraud")
+#boxplots_con_tabla(data, num_columns,target="is_fraud")
 
-make_stacked_barplots(data, cat_columns, top=10)
-print("\n Matriz de correlación...")
-make_heat_map(data,num_columns)#multivariado
+#make_stacked_barplots(data, cat_columns, top=10)
+#print("\n Matriz de correlación...")
+#make_heat_map(data,num_columns)#multivariado
 
-graficar_temporalidad_fraude(data)
+#graficar_temporalidad_fraude(data)
 
 #print("\n" + "="*70)
 #print("EXPLORACIÓN PROFUNDA")
@@ -153,7 +154,7 @@ graficar_temporalidad_fraude(data)
 
 #make_scatter_plot(data,var_claves_num)#multivariado  #DA PROBLEMAS, LO ASOCIO A LA CANTIDAD DE OBSERVACIONES
 
-make_stacked_barplots(data, cat_columns, top=10)#multivariado #NO APORTA MUCHA INFORMACIÓN DADO EL DESBALANCE
+#make_stacked_barplots(data, cat_columns, top=10)#multivariado #NO APORTA MUCHA INFORMACIÓN DADO EL DESBALANCE
 
 
 # Creación de nuevas variables
@@ -415,11 +416,11 @@ num_nuevas=["delta_tiempo_log_local","delta_tiempo_log_internet","city_pop_log",
 cat_nueva=["es_nuevo","es_online","is_first_internet","is_first_local"]
 
 
-
+"""
 graficar_densidad(data,num_nuevas)
 for num_var in num_nuevas:
     make_boxplot(data,num_var)
-
+"""
 
 
 
@@ -767,19 +768,20 @@ df_umbrales = pd.DataFrame(resultados_umbrales)
 print("\n=== RESULTADOS DE OPTIMIZACIÓN DE UMBRALES ===")
 print(df_umbrales[['Modelo', 'Umbral_Optimo', 'F1_Score', 'FP', 'FN']])
 
-
+"""
 # --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
 nombres_columnas = preprocessor.get_feature_names_out()
 
-# Supervisados
-aplicar_shap_tesis_final(xgb_model_final, X_test_scaled, nombres_columnas, "XGBoost ")
-aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP ", es_pytorch=True)
-aplicar_shap_tesis_final(logit_mod, X_test_scaled, nombres_columnas, "Regresión Logística")
-# No Supervisados / Anomalías
+# Modelos Supervisados
+aplicar_shap_tesis_final(xgb_model_final, X_test_scaled, nombres_columnas, "XGBoost")
+aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP", es_pytorch=True)
+
+# CORREGIDO: Pasamos logit_res y activamos el flag de statsmodels
+aplicar_shap_tesis_final(logit_res, X_test_scaled, nombres_columnas, "Regresión Logística", es_statsmodels=True)
+
+# Modelos No Supervisados / Anomalías
 aplicar_shap_tesis_final(iso_forest, X_test_scaled, nombres_columnas, "Isolation Forest")
-
 aplicar_shap_tesis_final(ae_model, X_test_scaled, nombres_columnas, "Autoencoder", es_pytorch=True)
-
 # Ejecución de la interpretabilidad para LOF
 df_res_lofo = aplicar_lofo_tesis_final(
     X_train_scaled,
@@ -787,7 +789,7 @@ df_res_lofo = aplicar_lofo_tesis_final(
     nombres_columnas,
     nombre_modelo="LOF_Rango_20_50"
 )
-
+"""
 # --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
 
 # 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)
@@ -871,7 +873,7 @@ print(df_final.to_string(index=False))
 # -------------------------------------------
 
 print("\n" + "="*60)
-print("📌 INICIANDO PRUEBA DE ROBUSTEZ INDEPENDIENTE: DICIEMBRE 2020")
+print(" INICIANDO PRUEBA DE ROBUSTEZ INDEPENDIENTE: DICIEMBRE 2020")
 print("="*60)
 
 # 1. Extracción y filtrado del universo exclusivo de diciembre de 2020
@@ -904,7 +906,7 @@ X_robust_tensor = torch.from_numpy(X_robust_scaled.copy()).float()
 # ------------------------------------------------------------------------------
 # PARTE A: EVALUACIÓN DE ROBUSTEZ TÉCNICA (Umbrales Fijos Obtenidos en Entrenamiento)
 # ------------------------------------------------------------------------------
-print("\n📈 [ROBUSTEZ TÉCNICA] Evaluación en Diciembre con Umbrales Previos:")
+print("\n [ROBUSTEZ TÉCNICA] Evaluación en Diciembre con Umbrales Previos:")
 
 resultados_robustez_tecnica = []
 
@@ -957,14 +959,14 @@ if 'ae_model' in locals():
 
 # Matriz resumen técnica del estrés temporal
 df_rob_tec = pd.DataFrame(resultados_robustez_tecnica)
-print("\n📊 [RESUMEN MATRICES - ROBUSTEZ DICIEMBRE 2020]:")
+print("\n [RESUMEN MATRICES - ROBUSTEZ DICIEMBRE 2020]:")
 print(df_rob_tec[['nombre', 'auc_roc', 'tp', 'fp', 'tn', 'fn']])
 
 
 # ------------------------------------------------------------------------------
 # PARTE B: EVALUACIÓN DE ROBUSTEZ FINANCIERA (Auditoría de Impacto Económico)
 # ------------------------------------------------------------------------------
-print("\n💰 [ROBUSTEZ FINANCIERA] Auditoría de Decisiones Estratégicas (F1 VS BAYES):")
+print("\n [ROBUSTEZ FINANCIERA] Auditoría de Decisiones Estratégicas (F1 VS BAYES):")
 
 info_modelos_robustez = {}
 if 'y_prob_logit_rob' in locals(): info_modelos_robustez['Regresión Logística'] = {'probabilidades': y_prob_logit_rob, 'umbral_f1': info_modelos['Regresión Logística']['umbral_f1']}
@@ -984,3 +986,62 @@ df_final_robustez = generar_matriz_comparativa_total(
 
 print(df_final_robustez.to_string(index=False))
 print("\n" + "="*60 + "\n")
+
+#-----------------------------------------------------
+#TEST DE ROBUSTEZ IMAN-DAVENPORT-->HOLM
+#-----------------------------------------------------
+print("\n" + "=" * 60)
+print("📊 GENERANDO MATRICES MENSUALES PARA IMAN-DAVENPORT")
+print("=" * 60)
+
+meses_test = test_df.loc[y_test.index, 'trans_date_trans_time'].dt.month.values
+meses_unicos = np.unique(meses_test)
+
+df_iman_auc = pd.DataFrame(index=[f"Mes_{m}" for m in meses_unicos])
+df_iman_ahorro = pd.DataFrame(index=[f"Mes_{m}" for m in meses_unicos])
+
+mult_lexis = 5.75
+costo_ca = 2.50
+
+for nombre_modelo, info in info_modelos.items():
+    lista_auc_mes = []
+    lista_ahorro_mes = []
+
+    for mes in meses_unicos:
+        mask = (meses_test == mes)
+
+        y_real_mes = y_test_values[mask]
+        amt_mes = amt_test_vector[mask]
+        clv_mes = clv_test_vector[mask]
+        y_prob_mes = info['probabilidades'][mask]
+
+        try:
+            auc_m = roc_auc_score(y_real_mes, y_prob_mes)
+        except:
+            auc_m = 0.5
+        lista_auc_mes.append(auc_m)
+
+        costo_fn_vector = amt_mes * mult_lexis
+        costo_fp_vector = costo_ca + clv_mes
+        costo_tp = costo_ca
+
+        thresholds_bayes = costo_fp_vector / (costo_fn_vector - costo_tp + costo_fp_vector)
+        y_pred_riesgo = (y_prob_mes > thresholds_bayes).astype(int)
+
+        tp = (y_real_mes == 1) & (y_pred_riesgo == 1)
+        fp = (y_real_mes == 0) & (y_pred_riesgo == 1)
+        fn = (y_real_mes == 1) & (y_pred_riesgo == 0)
+
+        costo_total = (tp.sum() * costo_tp) + (fp * costo_fp_vector).sum() + (fn * costo_fn_vector).sum()
+        costo_base = (y_real_mes * costo_fn_vector).sum()
+
+        ahorro_mes = costo_base - costo_total
+        lista_ahorro_mes.append(ahorro_mes)
+
+    df_iman_auc[nombre_modelo] = lista_auc_mes
+    df_iman_ahorro[nombre_modelo] = lista_ahorro_mes
+
+# LLAMADAS FINALES (Llamando a la función que ahora vive en estadisticas.py)
+ranks_auc, holm_auc = pipeline_iman_davenport_holm_puro(df_iman_auc, "AUC-ROC (Estructural)", buscar_maximo=True)
+ranks_ahorro, holm_ahorro = pipeline_iman_davenport_holm_puro(df_iman_ahorro, "Ahorro Financiero (Bayes)",
+                                                              buscar_maximo=True)
