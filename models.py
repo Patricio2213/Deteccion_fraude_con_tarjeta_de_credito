@@ -661,7 +661,7 @@ def graficar_auc_roc_modelos_propios(info_modelos, y_test_values):
     bars = plt.barh(df_auc['modelo'], df_auc['auc_roc'], color=colors, height=0.6)
 
     #plt.title('Rendimiento Estructural: AUC-ROC por Modelo', fontsize=12, pad=15, fontweight='bold')
-    plt.xlabel('Área Bajo la Curva (AUC-ROC)', fontsize=10, labelpad=10)
+    #plt.xlabel('Área Bajo la Curva (AUC-ROC)', fontsize=10, labelpad=10)
     plt.xlim(0.5, 1.01)  # Ajuste de escala horizontal
 
     ax = plt.gca()
