@@ -1,4 +1,5 @@
 import torch
+from sklearn.pipeline import Pipeline
 import pandas as pd
 import numpy as np
 import torch.nn as nn
@@ -26,7 +27,7 @@ def get_logistic_regression():
     # Por defecto usa L2 (Ridge). C=1.0 es el estándar.
     return LogisticRegression(C=1.0, solver='liblinear')  # @ajuste: C menor aumenta regularización
 
-
+"""
 def objective_xgboost(trial, X, y):
     # Definimos rangos exactos basados en Tayebi y El Kafhali
     param = {
@@ -52,8 +53,36 @@ def objective_xgboost(trial, X, y):
     ).mean()
 
     return score
+"""
+def objective_xgboost(trial, X_raw, y, preprocessor): # <-- Ahora le pasamos también el preprocesador
+    # Rangos sugeridos basados en la literatura para mitigar el sobreajuste
+    param = {
+        'n_estimators': trial.suggest_int('n_estimators', 50, 250),
+        'max_depth': trial.suggest_int('max_depth', 3, 7),
+        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3),
+        'gamma': trial.suggest_float('gamma', 0.1, 1.0),
+        'eval_metric': 'logloss',
+        'random_state': 42,
+        'n_jobs': -1
+    }
 
+    # El secreto académico: El Pipeline encapsula el escalador dentro del proceso de CV
+    pipeline_cv = Pipeline([
+        ('preprocesador', preprocessor),
+        ('classifier', XGBClassifier(**param))
+    ])
 
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+    # La validación cruzada opera directamente sobre el pipeline con los datos RAW
+    score = cross_val_score(
+        pipeline_cv, X_raw, y,
+        cv=cv,
+        scoring='roc_auc',
+        n_jobs=-1
+    ).mean()
+
+    return score
 def get_xgboost(params=None):
     # Si no pasamos parámetros, usa unos por defecto
     if params is None:
@@ -64,17 +93,37 @@ def get_xgboost(params=None):
 
 # MLP: Red Neuronal para Clasificación
 class MLP(nn.Module):
-    def __init__(self, input_dim):
+    def __init__(self, input_dim, seed=42):  #agregué seed para que nos deje de cambiar el valor de AUC cada vez que corremos
         super(MLP, self).__init__()
+
+
         self.network = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(32, 1) # Eliminamos el Sigmoid final
+            nn.Linear(32, 1)
         )
+
+        #esta linea evita que nos cambien los números entre pc
+        self._fijar_pesos_iniciales(seed)
+
     def forward(self, x):
         return self.network(x)
+
+    def _fijar_pesos_iniciales(self, seed):
+
+        # Creamos un generador de números aleatorios aislado con la semilla elegida
+        g = torch.Generator()
+        g.manual_seed(seed)
+
+
+        for layer in self.network:
+            if isinstance(layer, nn.Linear):
+
+                nn.init.kaiming_uniform_(layer.weight, generator=g)
+                if layer.bias is not None:
+                    nn.init.zeros_(layer.bias)
 
 
 # --- FAMILIA 2: ENFOQUE NO SUPERVISADO ---
@@ -538,3 +587,93 @@ def pipeline_iman_davenport_holm_puro(df_performance, metrica_nombre, buscar_max
     print(df_holm[['Comparación', 'p_val_original', 'p_val_Holm', 'Diferencia_Significativa']].to_string(index=False))
 
     return df_ranks, df_holm
+
+#------------------------------
+#GRÁFICOS DE RESULTADOS
+#------------------------------
+
+def graficar_ahorro_modelos_propios(resultados_economicos):
+
+    # Convertimos tu lista en un DataFrame solo para ordenar y graficar fácilmente
+    df_plot = pd.DataFrame(resultados_economicos).sort_values(by='ahorro', ascending=True)
+
+    plt.figure(figsize=(11, 5))
+
+    # Configuración estricta de 2 colores: Verde Oscuro (Ahorro) y Verde Atenuado (Pérdida)
+    verde_positivo = '#1E5631'
+    verde_negativo = '#A8BA9A'
+
+    colors = [verde_positivo if x >= 0 else verde_negativo for x in df_plot['ahorro']]
+
+    bars = plt.barh(df_plot['modelo'], df_plot['ahorro'], color=colors, height=0.6)
+
+    plt.title('Ahorro Financiero Absoluto por Modelo (Set de Validación)', fontsize=12, pad=20, fontweight='bold',
+              color='#222222')
+    plt.xlabel('Ahorro Económico Total ($)', fontsize=10, labelpad=10, color='#444444')
+
+    # Estilo limpio: Fondo blanco idéntico al tuyo sin cuadrículas
+    ax = plt.gca()
+    for spine in ['top', 'right', 'bottom', 'left']:
+        ax.spines[spine].set_visible(False)
+    ax.tick_params(axis='both', which='both', length=0)
+    plt.yticks(fontsize=10, fontweight='medium', color='#222222')
+
+    # Control dinámico para la extensión del eje X (evita que los textos se corten)
+    rango_total = df_plot['ahorro'].max() - df_plot['ahorro'].min()
+    plt.xlim(df_plot['ahorro'].min() - (rango_total * 0.05), df_plot['ahorro'].max() + (rango_total * 0.15))
+
+    # este es para que los montos queden a la derecha
+    for bar in bars:
+        posicion_derecha_barra = bar.get_x() + bar.get_width()
+        monto_real = bar.get_width()
+
+        # Margen dinámico para separar el texto de la punta de la barra
+        offset = rango_total * 0.012
+
+        plt.text(
+            posicion_derecha_barra + offset,
+            bar.get_y() + bar.get_height() / 2,
+            f"${monto_real:,.2f}",
+            va='center',
+            ha='left',
+            fontsize=9,
+            fontweight='bold',
+            color='#333333'
+        )
+
+    plt.tight_layout()
+    plt.show()
+
+
+def graficar_auc_roc_modelos_propios(info_modelos, y_test_values):
+
+    lista_auc = []
+    # Recorremos tu diccionario exacto leyendo la llave 'probabilidades' que tú creaste
+    for nombre, info_modelo in info_modelos.items():
+        auc = roc_auc_score(y_test_values, info_modelo['probabilidades'])
+        lista_auc.append({'modelo': nombre, 'auc_roc': auc})
+
+    df_auc = pd.DataFrame(lista_auc).sort_values(by='auc_roc', ascending=True)
+
+    plt.figure(figsize=(10, 5))
+    colors = ['#D9C5B2' if x != df_auc['auc_roc'].max() else '#C87A53' for x in df_auc['auc_roc']]
+
+    bars = plt.barh(df_auc['modelo'], df_auc['auc_roc'], color=colors, height=0.6)
+
+    #plt.title('Rendimiento Estructural: AUC-ROC por Modelo', fontsize=12, pad=15, fontweight='bold')
+    plt.xlabel('Área Bajo la Curva (AUC-ROC)', fontsize=10, labelpad=10)
+    plt.xlim(0.5, 1.01)  # Ajuste de escala horizontal
+
+    ax = plt.gca()
+    for spine in ['top', 'right', 'bottom', 'left']:
+        ax.spines[spine].set_visible(False)
+    ax.tick_params(axis='both', which='both', length=0)
+
+    # Colocar los valores numéricos del AUC-ROC al final de cada barra
+    for bar in bars:
+        width = bar.get_width()
+        plt.text(width + 0.005, bar.get_y() + bar.get_height() / 2,
+                 f"{width:.4f}", va='center', ha='left', fontsize=9, fontweight='bold')
+
+    plt.tight_layout()
+    plt.show()
