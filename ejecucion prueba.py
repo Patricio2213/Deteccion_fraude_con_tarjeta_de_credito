@@ -508,7 +508,7 @@ graficar_ahorro_modelos_propios(resultados_economicos)
 #GRAFICO RESULTADOS ESTADISTICOS
 print("\n📊 Generando Gráfico de AUC-ROC Estructural...")
 graficar_auc_roc_modelos_propios(info_modelos, y_test_values)
-"""
+
 # ---------------------------------------------
 # PRUEBA DE ROBUSTEZ
 # -------------------------------------------
@@ -699,4 +699,3 @@ for nombre_modelo, info in info_modelos.items():
 # LLAMADAS FINALES (Llamando a la función que ahora vive en estadisticas.py)
 ranks_auc, holm_auc = pipeline_iman_davenport_holm_puro(df_iman_auc, "AUC-ROC (Estructural)", buscar_maximo=True)
 ranks_ahorro, holm_ahorro = pipeline_iman_davenport_holm_puro(df_iman_ahorro, "Ahorro Financiero (Bayes)",                                                            buscar_maximo=True)
-"""

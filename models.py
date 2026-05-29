@@ -597,7 +597,7 @@ def graficar_ahorro_modelos_propios(resultados_economicos):
     # Convertimos tu lista en un DataFrame solo para ordenar y graficar fácilmente
     df_plot = pd.DataFrame(resultados_economicos).sort_values(by='ahorro', ascending=True)
 
-    plt.figure(figsize=(11, 5))
+    plt.figure(figsize=(6, 5.5))
 
     # Configuración estricta de 2 colores: Verde Oscuro (Ahorro) y Verde Atenuado (Pérdida)
     verde_positivo = '#1E5631'
@@ -607,8 +607,7 @@ def graficar_ahorro_modelos_propios(resultados_economicos):
 
     bars = plt.barh(df_plot['modelo'], df_plot['ahorro'], color=colors, height=0.6)
 
-    plt.title('Ahorro Financiero Absoluto por Modelo (Set de Validación)', fontsize=12, pad=20, fontweight='bold',
-              color='#222222')
+    #plt.title('Ahorro Financiero Absoluto por Modelo (Set de Validación)', fontsize=12, pad=20, fontweight='bold',  color='#222222')
     plt.xlabel('Ahorro Económico Total ($)', fontsize=10, labelpad=10, color='#444444')
 
     # Estilo limpio: Fondo blanco idéntico al tuyo sin cuadrículas
@@ -616,11 +615,13 @@ def graficar_ahorro_modelos_propios(resultados_economicos):
     for spine in ['top', 'right', 'bottom', 'left']:
         ax.spines[spine].set_visible(False)
     ax.tick_params(axis='both', which='both', length=0)
-    plt.yticks(fontsize=10, fontweight='medium', color='#222222')
+    plt.yticks(fontsize=11, fontweight='medium', color='#222222')
 
     # Control dinámico para la extensión del eje X (evita que los textos se corten)
     rango_total = df_plot['ahorro'].max() - df_plot['ahorro'].min()
     plt.xlim(df_plot['ahorro'].min() - (rango_total * 0.05), df_plot['ahorro'].max() + (rango_total * 0.15))
+
+    plt.yticks(fontsize=14, color='#000000', fontweight='medium')
 
     # este es para que los montos queden a la derecha
     for bar in bars:
@@ -636,7 +637,7 @@ def graficar_ahorro_modelos_propios(resultados_economicos):
             f"${monto_real:,.2f}",
             va='center',
             ha='left',
-            fontsize=9,
+            fontsize=11,
             fontweight='bold',
             color='#333333'
         )
@@ -655,13 +656,13 @@ def graficar_auc_roc_modelos_propios(info_modelos, y_test_values):
 
     df_auc = pd.DataFrame(lista_auc).sort_values(by='auc_roc', ascending=True)
 
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(6, 5.5))
     colors = ['#D9C5B2' if x != df_auc['auc_roc'].max() else '#C87A53' for x in df_auc['auc_roc']]
 
     bars = plt.barh(df_auc['modelo'], df_auc['auc_roc'], color=colors, height=0.6)
 
     #plt.title('Rendimiento Estructural: AUC-ROC por Modelo', fontsize=12, pad=15, fontweight='bold')
-    #plt.xlabel('Área Bajo la Curva (AUC-ROC)', fontsize=10, labelpad=10)
+    plt.xlabel('Área Bajo la Curva (AUC-ROC)', fontsize=10, labelpad=10)
     plt.xlim(0.5, 1.01)  # Ajuste de escala horizontal
 
     ax = plt.gca()
@@ -669,11 +670,12 @@ def graficar_auc_roc_modelos_propios(info_modelos, y_test_values):
         ax.spines[spine].set_visible(False)
     ax.tick_params(axis='both', which='both', length=0)
 
+    plt.yticks(fontsize=14, color='#000000', fontweight='medium')
     # Colocar los valores numéricos del AUC-ROC al final de cada barra
     for bar in bars:
         width = bar.get_width()
         plt.text(width + 0.005, bar.get_y() + bar.get_height() / 2,
-                 f"{width:.4f}", va='center', ha='left', fontsize=9, fontweight='bold')
+                 f"{width:.4f}", va='center', ha='left', fontsize=11, fontweight='bold')
 
     plt.tight_layout()
     plt.show()
