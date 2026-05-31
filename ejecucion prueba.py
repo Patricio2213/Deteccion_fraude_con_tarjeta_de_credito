@@ -16,6 +16,34 @@ plt.rcParams.update({
 data_train=buscar_y_cargar("fraudTrain.csv")
 data_test=buscar_y_cargar("fraudTest.csv")
 
+data=pd.concat([data_train, data_test], ignore_index=True)
+data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
+data = distancia_entre_comercios(data)
+data = calcular_velocidad(data)
+data = distancia_cliente_comercio(data)
+data["es_nuevo"] = nuevo_comercio(data)
+
+print("fechas data entrenamiento")
+print(data_train["trans_date_trans_time"].min())
+print(data_train["trans_date_trans_time"].max())
+
+print("fechas data testeo")
+print(data_test["trans_date_trans_time"].min())
+print(data_test["trans_date_trans_time"].max())
+
+fecha_entreno_inicio = '2019-01-01 00:00:18'
+fecha_entreno_fin    = '2020-06-21 12:13:37'
+fecha_prueba_inicio  = '2020-06-21 12:14:25'
+fecha_prueba_fin     = '2020-12-31 23:59:34'
+
+# Extraemos los conjuntos completos respetando los cortes temporales estrictos
+data_train = data[(data['trans_date_trans_time'] >= fecha_entreno_inicio) &
+                        (data['trans_date_trans_time'] <= fecha_entreno_fin)].copy()
+
+data_test = data[(data['trans_date_trans_time'] >= fecha_prueba_inicio) &
+                      (data['trans_date_trans_time'] <= fecha_prueba_fin)].copy()
+
+
 
 
 # ==============================================================================
@@ -31,13 +59,13 @@ data_test['trans_date_trans_time'] = pd.to_datetime(data_test['trans_date_trans_
 
 # --- variables train ---
 print("⏳ Procesando métricas geográficas y de comportamiento en DATA_TRAIN...")
-data_train = distancia_entre_comercios(data_train)
-data_train = calcular_velocidad(data_train)
-data_train = distancia_cliente_comercio(data_train)
+#data_train = distancia_entre_comercios(data_train)
+#data_train = calcular_velocidad(data_train)
+#data_train = distancia_cliente_comercio(data_train)
 
 data_train["edad"] = calcular_edad(data_train)
-data_train["tasa_categoria"] = calcular_anomaliaencategoria(data_train)
-data_train["es_nuevo"] = nuevo_comercio(data_train)
+#data_train["tasa_categoria"] = calcular_anomaliaencategoria(data_train)
+#data_train["es_nuevo"] = nuevo_comercio(data_train)
 
 # Aplicación de transformaciones logarítmicas en Train
 data_train["amt_log"] = np.log1p(data_train["amt"])
@@ -54,16 +82,33 @@ data_train["d_cliente_comercio_log_int"] = np.log1p(data_train["d_cliente_comerc
 categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 data_train["es_online"] = data_train["category"].isin(categorias_net).astype(int)
 
+# Calculamos la proporción de fraude por categoría usando SOLO los datos de entrenamiento
+# Categoría -> Probabilidad de fraude histórica
+tasa_categoria_map = (
+    data_train.groupby("category")["is_fraud"].mean().to_dict()
+)
 
+# Mapeamos ese diccionario en el set de Entrenamiento
+data_train["tasa_categoria"] = data_train["category"].map(tasa_categoria_map)
+
+# Mapeamos el MISMO diccionario en el set de Testeo (Heredamos el pasado al futuro)
+data_test["tasa_categoria"] = data_test["category"].map(tasa_categoria_map)
+
+# Control de seguridad: Si en Test aparece una categoría que no existía en Train,
+# el mapa arrojará NaN. Lo llenamos con la tasa de fraude global de Train.
+tasa_global_train = data_train["is_fraud"].mean()
+data_test["tasa_categoria"] = data_test["tasa_categoria"].fillna(
+    tasa_global_train
+)
 # --- Variables para test---
 print("⏳ Procesando métricas geográficas y de comportamiento en DATA_TEST...")
-data_test = distancia_entre_comercios(data_test)
-data_test = calcular_velocidad(data_test)
-data_test = distancia_cliente_comercio(data_test)
+#data_test = distancia_entre_comercios(data_test)
+#data_test = calcular_velocidad(data_test)
+#data_test = distancia_cliente_comercio(data_test)
 
 data_test["edad"] = calcular_edad(data_test)
-data_test["tasa_categoria"] = calcular_anomaliaencategoria(data_test)
-data_test["es_nuevo"] = nuevo_comercio(data_test)
+#data_test["tasa_categoria"] = calcular_anomaliaencategoria(data_test)
+#data_test["es_nuevo"] = nuevo_comercio(data_test)
 
 # Aplicación de transformaciones logarítmicas en Test
 data_test["amt_log"] = np.log1p(data_test["amt"])
@@ -80,42 +125,46 @@ data_test["d_cliente_comercio_log_int"] = np.log1p(data_test["d_cliente_comercio
 data_test["es_online"] = data_test["category"].isin(categorias_net).astype(int)
 
 
-# ==============================================================================
-# BLOQUE 3: FILTRADO CRONOLÓGICO Y MUESTREO DE MODELAMIENTO
-# ==============================================================================
-fecha_entreno_inicio = '2019-01-01 00:00:18'
-fecha_entreno_fin    = '2020-06-21 12:13:37'
-fecha_prueba_inicio  = '2020-06-21 12:14:25'
-fecha_prueba_fin     = '2020-12-31 23:59:34'
 
-# Extraemos los conjuntos completos respetando los cortes temporales estrictos
-full_train = data_train[(data_train['trans_date_trans_time'] >= fecha_entreno_inicio) &
-                        (data_train['trans_date_trans_time'] <= fecha_entreno_fin)].copy()
 
-full_test = data_test[(data_test['trans_date_trans_time'] >= fecha_prueba_inicio) &
-                      (data_test['trans_date_trans_time'] <= fecha_prueba_fin)].copy()
-
-# Liberamos las bases de carga iniciales que ya no usaremos
-del data_train
-del data_test
+# Liberamos las bases de que ya no usaremos
+del data
 gc.collect()
 
 # Definición de volúmenes de submuestreo metodológico
 n_train = 160000
 n_test  = 40000
 
-train_df = full_train.sample(n=min(n_train, len(full_train)), random_state=42).copy()
-test_df  = full_test.sample(n=min(n_test, len(full_test)), random_state=42).copy()
+#train_df = full_train.sample(n=min(n_train, len(full_train)), random_state=42).copy()
+#test_df  = full_test.sample(n=min(n_test, len(full_test)), random_state=42).copy()
+
+# ordenamos full_train cronologicamente
+full_train = data_train.sort_values(
+    "trans_date_trans_time"
+).reset_index(drop=True)
+
+# usamos las ultimas observaciones de full train
+train_df = full_train.tail(n_train).copy()
+
+# ordenamos cronologicamente full_test
+full_test = data_test.sort_values("trans_date_trans_time").reset_index(
+    drop=True
+)
+#aqui usamos las primeras 40000 obs
+test_df = full_test.head(n_test).copy()
 
 # --- Ingeniería de Variables Temporales en los DataFrames ---
 for df_temp in [train_df, test_df]:
     df_temp['hour'] = df_temp['trans_date_trans_time'].dt.hour
     df_temp['month'] = df_temp['trans_date_trans_time'].dt.month
 
+del data_train
+del data_test
+gc.collect()
 
 target = 'is_fraud'
 columnas_drop = [target, "trans_date_trans_time", "street", "first", "last",
-                 "merchant", "city", "dob", "lat", "long", "merch_lat", "merch_long", "job", "amt", "city_pop",
+                 "merchant", "city", "dob", "lat", "long", "merch_lat", "merch_long", "job", "amt", "city_pop","category",
                  "velocidad", "delta_tiempo_local", "delta_tiempo_internet", "velocidad_local", "velocidad_internet",
                  "distancia_local", "distancia_internet", "d_cliente_comercio_loc", "d_cliente_comercio_int", "is_first_buy",'Unnamed: 0', 'cc_num', 'unix_time',"is_fraud","zip","trans_num","trans_date_trans_time"]
 
@@ -132,7 +181,7 @@ preprocessor = ColumnTransformer(
     transformers=[
         ('num', StandardScaler(), num_columns),
         ('cat', OneHotEncoder(drop='first', handle_unknown='ignore', sparse_output=False), cat_columns)
-    ])
+    ],verbose_feature_names_out=False,)
 
 X_train_scaled = preprocessor.fit_transform(X_train_raw)
 X_test_scaled = preprocessor.transform(X_test_raw)
@@ -164,12 +213,26 @@ X_test_stat = X_test_stat.reindex(columns=X_train_stat.columns, fill_value=0)
 
 print(f"✅ Columnas Train: {X_train_stat.shape[1]} | Columnas Test: {X_test_stat.shape[1]}")
 
+
+#Calcular los pesos inversamente proporcionales al desbalance
+conteo_clases = np.bincount(y_train_reset)
+peso_legitimas = 1.0
+peso_fraudes = conteo_clases[0] / conteo_clases[1]  # Ej: Si hay 300 veces más legítimas, el fraude pesa 300
+
+
+pesos_transacciones = np.where(y_train_reset == 1, peso_fraudes, peso_legitimas)
+
 # 5. Ajustar modelo
-logit_mod = sm.Logit(y_train_reset, X_train_stat)
+logit_mod = sm.Logit(y_train_reset, X_train_stat, freq_weights=pesos_transacciones)
 
 try:
-    # Usamos bfgs que es más tolerante a la cuasi-separación
-    logit_res = logit_mod.fit(method='bfgs', maxiter=100, disp=0)
+    logit_res = logit_mod.fit_regularized(
+        method="l1",
+        alpha=0.05,
+        L1_wt=0.0,
+        start_params=np.zeros(X_train_stat.shape[1]),
+        disp=0,
+    )#metodo ridge puro
     print("\n=== SUMMARY DE REGRESIÓN LOGÍSTICA ===")
     print(logit_res.summary())
 
@@ -179,6 +242,24 @@ try:
 except Exception as e:
     print(f"⚠️ Nota de Tesis: La Regresión Logística no convergió por inestabilidad numérica.")
     print(f"Detalle: {e}")
+
+print("ESCANER")
+for col in X_train_final.columns:
+    # Agrupamos los datos reales por el valor de la variable escalada
+    # y miramos el promedio del target para ver si da 0 o 1 de forma perfecta
+    agrupado = pd.DataFrame({"valor": X_train_final[col], "is_fraud": y_train_reset})
+
+    # Redondeamos para agrupar variables continuas que actúen como flags
+    summary_col = agrupado.groupby("valor")["is_fraud"].agg(["count", "mean"])
+
+    # Buscamos grupos significativos (más de 50 filas) donde el riesgo sea 100% o 0% perfecto
+    sospechosos = summary_col[(summary_col["mean"].isin([0.0, 1.0])) & (summary_col["count"] > 50)]
+
+    if not sospechosos.empty:
+        print(f"⚠️ ¡ALERTA! Variable problemática detectada: '{col}'")
+        print(sospechosos.head(2))
+        print("-" * 60)
+
 
 # B. XGBOOST con OPTIMIZACIÓN BAYESIANA
 print(f"\n🚀 Iniciando Optimización Bayesiana para XGBoost (Rangos: Tayebi & El Kafhali)...")
@@ -199,6 +280,7 @@ xgb_model_final.fit(X_train_scaled, y_train)
 # Predicción y Evaluación
 y_prob_xgb = xgb_model_final.predict_proba(X_test_scaled)[:, 1]
 evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.4119)
+
 
 
 # --- 5. MODELOS NO SUPERVISADOS (Isolation Forest & LOF) ---
@@ -360,7 +442,7 @@ with torch.no_grad():
         mse_test,
         umbral=umbral_3sigma
     )
-
+"""
 # ------------------------------------------
 # OBTENER MEJORES UMBRALES
 # ------------------------------------------
@@ -389,7 +471,7 @@ print("\n=== RESULTADOS DE OPTIMIZACIÓN DE UMBRALES ===")
 print(df_umbrales[['Modelo', 'Umbral_Optimo', 'F1_Score', 'FP', 'FN']])
 
 
-"""
+
 # --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
 nombres_columnas = preprocessor.get_feature_names_out()
 
@@ -410,7 +492,7 @@ df_res_lofo = aplicar_lofo_tesis_final(
     nombres_columnas,
     nombre_modelo="LOF_Rango_20_50"
 )
-"""
+
 # --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
 
 # 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)
@@ -699,3 +781,4 @@ for nombre_modelo, info in info_modelos.items():
 # LLAMADAS FINALES (Llamando a la función que ahora vive en estadisticas.py)
 ranks_auc, holm_auc = pipeline_iman_davenport_holm_puro(df_iman_auc, "AUC-ROC (Estructural)", buscar_maximo=True)
 ranks_ahorro, holm_ahorro = pipeline_iman_davenport_holm_puro(df_iman_ahorro, "Ahorro Financiero (Bayes)",                                                            buscar_maximo=True)
+"""

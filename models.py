@@ -150,19 +150,20 @@ def get_lof(neighbors):
 import torch.nn as nn
 
 class AutoencoderProgresivoVariable(nn.Module):
-    def __init__(self, input_dim, c1=20, c2=10, bottleneck=5):
+
+    def __init__(self, input_dim, c1=20, c2=10, bottleneck=5, seed=42):
         super(AutoencoderProgresivoVariable, self).__init__()
 
         # Encoder: Reducción progresiva con ReLU y Dropout
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, c1),
-            nn.ReLU(),             # ReLU es preferida sobre Tanh en estas capas
-            nn.Dropout(0.2),       # Dropout para evitar el sobreajuste
+            nn.ReLU(),  # ReLU es preferida sobre Tanh en estas capas
+            nn.Dropout(0.2),  # Dropout para evitar el sobreajuste
             nn.Linear(c1, c2),
             nn.ReLU(),
             nn.Dropout(0.2),
             nn.Linear(c2, bottleneck),
-            nn.ReLU()
+            nn.ReLU(),
         )
 
         # Decoder: Reconstrucción simétrica
@@ -173,11 +174,25 @@ class AutoencoderProgresivoVariable(nn.Module):
             nn.Linear(c2, c1),
             nn.ReLU(),
             nn.Dropout(0.2),
-            nn.Linear(c1, input_dim) # Salida lineal para datos estandarizado [3]
+            nn.Linear(
+                c1, input_dim
+            ),  # Salida lineal para datos estandarizado [3]
         )
+        self._fijar_pesos_iniciales(seed)
 
     def forward(self, x):
         return self.decoder(self.encoder(x))
+
+    def _fijar_pesos_iniciales(self, seed):
+        g = torch.Generator()
+        g.manual_seed(seed)
+
+        # Recorremos tanto el encoder como el decoder buscando las capas lineales
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_uniform_(m.weight, generator=g)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
 
 def evaluar_modelo(nombre, y_real, y_prob, umbral=None):
@@ -221,6 +236,7 @@ def aplicar_shap_tesis_final(model, X_data_numpy, feature_names, nombre_modelo="
     print("=" * 40)
 
     sample_size = min(2000, len(X_data_numpy))
+    np.random.seed(42)
     indices = np.random.choice(X_data_numpy.shape[0], sample_size, replace=False)
     X_sample_np = X_data_numpy[indices]
 
@@ -366,6 +382,7 @@ def aplicar_lofo_tesis_final(X_train_scaled, X_test_scaled, feature_names, nombr
 
     # 1. Reducimos muestra para que sea comparable en tiempos y representatividad
     sample_size = min(2000, len(X_test_scaled))
+    np.random.seed(42)
     indices = np.random.choice(X_test_scaled.shape[0], sample_size, replace=False)
     X_test_sample = X_test_scaled[indices]
 
