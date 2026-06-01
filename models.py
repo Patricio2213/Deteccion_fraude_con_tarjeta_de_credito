@@ -458,6 +458,9 @@ def aplicar_lofo_tesis_final(X_train_scaled, X_test_scaled, feature_names, nombr
 def encontrar_mejor_umbral(nombre_modelo, y_real, y_prob):
     # Calculamos precision, recall y los umbrales posibles
     precision, recall, thresholds = precision_recall_curve(y_real, y_prob)
+    
+    precision_corr = precision[:-1]
+    recall_corr = recall[:-1]
 
     # Calculamos F1-Score para encontrar el equilibrio técnico
     f1_scores = 2 * (precision * recall) / (precision + recall + 1e-9)
