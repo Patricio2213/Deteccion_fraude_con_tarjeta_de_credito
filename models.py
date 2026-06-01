@@ -644,7 +644,7 @@ def graficar_ahorro_modelos_propios(resultados_economicos):
 
     # Control dinámico para la extensión del eje X (evita que los textos se corten)
     rango_total = df_plot['ahorro'].max() - df_plot['ahorro'].min()
-    plt.xlim(df_plot['ahorro'].min() - (rango_total * 0.05), df_plot['ahorro'].max() + (rango_total * 0.15))
+    plt.xlim(df_plot['ahorro'].min() - (rango_total * 0.05), df_plot['ahorro'].max() + (rango_total * 0.20))
 
     plt.yticks(fontsize=14, color='#000000', fontweight='medium')
 
@@ -704,3 +704,111 @@ def graficar_auc_roc_modelos_propios(info_modelos, y_test_values):
 
     plt.tight_layout()
     plt.show()
+
+
+def pipeline_iman_davenport_holm_control(df_performance, metrica_nombre, modelo_control="XGBoost", buscar_maximo=True):
+    # @cambio: Se agrega el parámetro 'modelo_control' por defecto como XGBoost
+
+    matrix = df_performance.to_numpy()
+    N, k = matrix.shape
+    alpha_global = 0.05
+
+    print("\n" + "=" * 75)
+    print(f"🔬 PIPELINE ESTADÍSTICO DE CONTROL: {metrica_nombre.upper()}")
+    print(f"🎯 Modelo de Control de Referencia: {modelo_control}")
+    print("=" * 75)
+
+    if buscar_maximo:
+        rangos = np.array([rankdata(-row) for row in matrix])
+    else:
+        rangos = np.array([rankdata(row) for row in matrix])
+
+    promedio_rangos = np.mean(rangos, axis=0)
+
+    sum_cuadrados_rangos = np.sum(promedio_rangos ** 2)
+    estadistico_friedman = (12 * N / (k * (k + 1))) * (sum_cuadrados_rangos - (k * (k + 1) ** 2 / 4))
+
+    numerador = (N - 1) * estadistico_friedman
+    denominador = N * (k - 1) - estadistico_friedman
+    estadistico_iman = numerador / denominador
+
+    df1 = k - 1
+    df2 = (k - 1) * (N - 1)
+    p_valor_global = f.sf(estadistico_iman, df1, df2)
+
+    dict_rangos = {df_performance.columns[i]: promedio_rangos[i] for i in range(k)}
+    df_ranks = pd.DataFrame(list(dict_rangos.items()), columns=['Modelo', 'Rango_Promedio']).sort_values(
+        by='Rango_Promedio')
+
+    print(f"\n[TEST GLOBAL - IMAN-DAVENPORT]")
+    print(f"• Estadístico F: {estadistico_iman:.4f}")
+    print(f"• Grados de Libertad: ({df1}, {df2})")
+    print(f"• p-valor Global: {p_valor_global:.6e}")
+    print("\nRanking de Rangos Promedios:")
+    print(df_ranks.to_string(index=False))
+
+    if p_valor_global >= alpha_global:
+        print(f"\nConclusión: No se rechaza H0. No hay diferencias significativas.")
+        return df_ranks, None
+
+    print(f"\nConclusión: Rechazamos H0 (p < {alpha_global}). Existen diferencias significativas.")
+    print(f"\n[TEST POST-HOC - HOLM CONTROLADO: TODOS CONTRA {modelo_control.upper()}]")
+
+    modelos = df_performance.columns.tolist()
+
+    # Validar que el modelo de control realmente exista en tus datos
+    if modelo_control not in modelos:
+        print(f"⚠️ Error: El modelo de control '{modelo_control}' no se encuentra en las columnas.")
+        return df_ranks, None
+
+    idx_control = modelos.index(modelo_control)  # Índice de XGBoost
+    error_estandar = np.sqrt((k * (k + 1)) / (6 * N))
+    resultados_control = []
+
+    # === 🚨 AQUÍ ESTÁ EL CAMBIO CRUCIAL 🚨 ===
+    # En vez de itertools.combinations(range(k), 2), iteramos solo contra el control
+    for j in range(k):
+        if j == idx_control:
+            continue  # Evitamos que XGBoost se compare con XGBoost
+
+        mod_comparar_name = modelos[j]
+
+        # Mantenemos tu misma matemática pura de distancia de rangos
+        z_val = abs(promedio_rangos[idx_control] - promedio_rangos[j]) / error_estandar
+        p_val_base = 2 * (1 - norm.cdf(z_val))
+
+        resultados_control.append({
+            'Comparación': f"{modelo_control} vs {mod_comparar_name}",
+            'p_val_original': p_val_base
+        })
+
+    df_holm = pd.DataFrame(resultados_control)
+    df_holm = df_holm.sort_values(by='p_val_original').reset_index(drop=True)
+
+    m = len(df_holm)  # Ahora m valdrá 5 en vez de 15
+    umbrales_corregidos = []
+    decisiones = []
+    stop_test = False  # Bandera de parada secuencial obligatoria de Holm
+
+    for idx, row in df_holm.iterrows():
+        posicion = idx + 1
+        # Fórmula estricta de Holm: alpha / (m - posicion + 1)
+        umbral_local = alpha_global / (m - posicion + 1)
+        umbrales_corregidos.append(umbral_local)
+
+        p_original = row['p_val_original']
+
+        # Si el p-valor original es menor al umbral local y no hemos parado antes...
+        if p_original < umbral_local and not stop_test:
+            decisiones.append(True)
+        else:
+            decisiones.append(False)
+            stop_test = True  # Activamos parada: todo lo que viene abajo es False
+
+    df_holm['Umbral_Local'] = umbrales_corregidos
+    df_holm['Diferencia_Significativa'] = decisiones
+
+    # Reemplazamos 'p_val_Holm' por el 'Umbral_Local' para que muestre el límite de corte formal en tu reporte escrito
+    print(df_holm[['Comparación', 'p_val_original', 'Umbral_Local', 'Diferencia_Significativa']].to_string(index=False))
+
+    return df_ranks, df_holm

@@ -77,12 +77,12 @@ data_train["edad"] = calcular_edad(data_train)
 #data_train["es_nuevo"] = nuevo_comercio(data_train)
 
 # Aplicación de transformaciones logarítmicas en Train
-data_train["amt_log"] = np.log1p(data_train["amt"])
-data_train["city_pop_log"] = np.log1p(data_train["city_pop"])
+data_train["monto_log"] = np.log1p(data_train["amt"])
+data_train["poblacion_ciudad_log"] = np.log1p(data_train["city_pop"])
 data_train["velocidad_log_local"] = np.log1p(data_train["velocidad_local"])
 data_train["velocidad_log_internet"] = np.log1p(data_train["velocidad_internet"])
-data_train["delta_tiempo_log_local"] = np.log1p(data_train["delta_tiempo_local"])
-data_train["delta_tiempo_log_internet"] = np.log1p(data_train["delta_tiempo_internet"])
+data_train["diferencia_tiempo_log_local"] = np.log1p(data_train["delta_tiempo_local"])
+data_train["diferencia_tiempo_log_internet"] = np.log1p(data_train["delta_tiempo_internet"])
 data_train["distancia_log_local"] = np.log1p(data_train["distancia_local"])
 data_train["distancia_log_internet"] = np.log1p(data_train["distancia_internet"])
 data_train["d_cliente_comercio_log_local"] = np.log1p(data_train["d_cliente_comercio_loc"])
@@ -98,15 +98,15 @@ tasa_categoria_map = (
 )
 
 # Mapeamos ese diccionario en el set de Entrenamiento
-data_train["tasa_categoria"] = data_train["category"].map(tasa_categoria_map)
+data_train["tasa_fraude_categoria"] = data_train["category"].map(tasa_categoria_map)
 
 # Mapeamos el MISMO diccionario en el set de Testeo (Heredamos el pasado al futuro)
-data_test["tasa_categoria"] = data_test["category"].map(tasa_categoria_map)
+data_test["tasa_fraude_categoria"] = data_test["category"].map(tasa_categoria_map)
 
 # Control de seguridad: Si en Test aparece una categoría que no existía en Train,
 # el mapa arrojará NaN. Lo llenamos con la tasa de fraude global de Train.
 tasa_global_train = data_train["is_fraud"].mean()
-data_test["tasa_categoria"] = data_test["tasa_categoria"].fillna(
+data_test["tasa_fraude_categoria"] = data_test["tasa_fraude_categoria"].fillna(
     tasa_global_train
 )
 # --- Variables para test---
@@ -120,12 +120,12 @@ data_test["edad"] = calcular_edad(data_test)
 #data_test["es_nuevo"] = nuevo_comercio(data_test)
 
 # Aplicación de transformaciones logarítmicas en Test
-data_test["amt_log"] = np.log1p(data_test["amt"])
-data_test["city_pop_log"] = np.log1p(data_test["city_pop"])
+data_test["monto_log"] = np.log1p(data_test["amt"])
+data_test["poblacion_ciudad_log"] = np.log1p(data_test["city_pop"])
 data_test["velocidad_log_local"] = np.log1p(data_test["velocidad_local"])
 data_test["velocidad_log_internet"] = np.log1p(data_test["velocidad_internet"])
-data_test["delta_tiempo_log_local"] = np.log1p(data_test["delta_tiempo_local"])
-data_test["delta_tiempo_log_internet"] = np.log1p(data_test["delta_tiempo_internet"])
+data_test["diferencia_tiempo_log_local"] = np.log1p(data_test["delta_tiempo_local"])
+data_test["diferencia_tiempo_log_internet"] = np.log1p(data_test["delta_tiempo_internet"])
 data_test["distancia_log_local"] = np.log1p(data_test["distancia_local"])
 data_test["distancia_log_internet"] = np.log1p(data_test["distancia_internet"])
 data_test["d_cliente_comercio_log_local"] = np.log1p(data_test["d_cliente_comercio_loc"])
@@ -164,8 +164,8 @@ test_df = full_test.head(n_test).copy()
 
 # --- Ingeniería de Variables Temporales en los DataFrames ---
 for df_temp in [train_df, test_df]:
-    df_temp['hour'] = df_temp['trans_date_trans_time'].dt.hour
-    df_temp['month'] = df_temp['trans_date_trans_time'].dt.month
+    df_temp['hora'] = df_temp['trans_date_trans_time'].dt.hour
+    df_temp['mes'] = df_temp['trans_date_trans_time'].dt.month
 
 del data_train
 del data_test
@@ -246,7 +246,7 @@ try:
     print(logit_res.summary())
 
     y_prob_logit = logit_res.predict(X_test_stat)
-    evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.9968)
+    evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.1667)
 
 except Exception as e:
     print(f"⚠️ Nota de Tesis: La Regresión Logística no convergió por inestabilidad numérica.")
@@ -287,7 +287,7 @@ xgb_model_final.fit(X_train_scaled, y_train)
 
 # Predicción y Evaluación
 y_prob_xgb = xgb_model_final.predict_proba(X_test_scaled)[:, 1]
-evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.4119)
+evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.2337)
 
 
 
@@ -299,7 +299,7 @@ iso_forest = get_isolation_forest()
 iso_forest.fit(X_train_scaled)
 y_prob_iso = -iso_forest.decision_function(X_test_scaled)
 y_prob_iso = (y_prob_iso - y_prob_iso.min()) / (y_prob_iso.max() - y_prob_iso.min() + 1e-9)
-evaluar_modelo("Isolation Forest", y_test, y_prob_iso, umbral=0.8025)
+evaluar_modelo("Isolation Forest", y_test, y_prob_iso, umbral=0.8109)
 
 # B. LOCAL OUTLIER FACTOR (LOF) - METODOLOGÍA DE RANGOS (20-50)
 print("⏳ Ejecutando LOF con metodología de rangos (Breunig et al.)...")
@@ -340,7 +340,7 @@ train_loader = DataLoader(
     TensorDataset(X_train_tensor, y_train_tensor),
     batch_size=32,
     shuffle=True,
-    generator=g_mlp  
+    generator=g_mlp
 )
 # --- 7. ENTRENAMIENTO MLP BALANCEADO ---
 conteo_clases = y_train.value_counts()
@@ -375,7 +375,7 @@ for epoch in range(num_epochs):
 mlp_model.eval()
 with torch.no_grad():
     y_prob_mlp = torch.sigmoid(mlp_model(X_test_tensor)).numpy().flatten()
-    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.9995)
+    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=1)
 """
 # --- GRÁFICA DE SALIDA (Separada del flujo de entrenamiento) ---
 plt.figure(figsize=(8, 4))
@@ -507,7 +507,7 @@ df_res_lofo = aplicar_lofo_tesis_final(
     nombres_columnas,
     nombre_modelo="LOF_Rango_20_50"
 )
-
+"""
 # --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
 
 # 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)
@@ -624,8 +624,8 @@ df_robustez_raw = full_test[(full_test['trans_date_trans_time'] >= fecha_rob_ini
 print(f"🔹 Registros encontrados para la prueba de estrés de diciembre: {len(df_robustez_raw)}")
 
 # 2. Ingeniería de variables temporales exclusiva para el set de robustez
-df_robustez_raw['hour'] = df_robustez_raw['trans_date_trans_time'].dt.hour
-df_robustez_raw['month'] = df_robustez_raw['trans_date_trans_time'].dt.month
+df_robustez_raw['hora'] = df_robustez_raw['trans_date_trans_time'].dt.hour
+df_robustez_raw['mes'] = df_robustez_raw['trans_date_trans_time'].dt.month
 
 # 3. Separación de matriz de características y etiquetas reales
 X_robust_raw = df_robustez_raw.drop(columns=[col for col in columnas_drop if col in df_robustez_raw.columns])
@@ -796,4 +796,12 @@ for nombre_modelo, info in info_modelos.items():
 # LLAMADAS FINALES (Llamando a la función que ahora vive en estadisticas.py)
 ranks_auc, holm_auc = pipeline_iman_davenport_holm_puro(df_iman_auc, "AUC-ROC (Estructural)", buscar_maximo=True)
 ranks_ahorro, holm_ahorro = pipeline_iman_davenport_holm_puro(df_iman_ahorro, "Ahorro Financiero (Bayes)",                                                            buscar_maximo=True)
-"""
+
+print("\n[ANÁLISIS METODOLÓGICO DE CONTROL]")
+ranks_auc_ctrl, holm_auc_ctrl = pipeline_iman_davenport_holm_control(
+    df_iman_auc, "AUC-ROC (Estructural)", modelo_control="XGBoost", buscar_maximo=True
+)
+
+ranks_ahorro_ctrl, holm_ahorro_ctrl = pipeline_iman_davenport_holm_control(
+    df_iman_ahorro, "Ahorro Financiero (Bayes)", modelo_control="XGBoost", buscar_maximo=True
+)
