@@ -7,6 +7,14 @@ from EDA import *
 from models import *
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
+np.random.seed(42)
+random.seed(42)
+torch.manual_seed(42)
+
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 plt.rcParams.update({
     'figure.facecolor': 'white',
@@ -325,8 +333,15 @@ X_test_tensor = torch.from_numpy(X_test_scaled.copy()).float()
 y_train_tensor = torch.from_numpy(y_train.values.copy()).float().view(-1, 1)
 
 input_dim = X_train_tensor.shape[1]
-train_loader = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
-
+#esto es para que no cambien los resultados
+g_mlp = torch.Generator()
+g_mlp.manual_seed(42)
+train_loader = DataLoader(
+    TensorDataset(X_train_tensor, y_train_tensor),
+    batch_size=32,
+    shuffle=True,
+    generator=g_mlp  
+)
 # --- 7. ENTRENAMIENTO MLP BALANCEADO ---
 conteo_clases = y_train.value_counts()
 peso_fraude = conteo_clases[0] / conteo_clases[1]
@@ -442,7 +457,7 @@ with torch.no_grad():
         mse_test,
         umbral=umbral_3sigma
     )
-"""
+
 # ------------------------------------------
 # OBTENER MEJORES UMBRALES
 # ------------------------------------------
@@ -471,7 +486,7 @@ print("\n=== RESULTADOS DE OPTIMIZACIÓN DE UMBRALES ===")
 print(df_umbrales[['Modelo', 'Umbral_Optimo', 'F1_Score', 'FP', 'FN']])
 
 
-
+"""
 # --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
 nombres_columnas = preprocessor.get_feature_names_out()
 

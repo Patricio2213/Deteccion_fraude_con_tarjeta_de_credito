@@ -20,14 +20,7 @@ from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.functional as F
 import torch.optim as optim
-np.random.seed(42)
-random.seed(42)
-torch.manual_seed(42)
 
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(42)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
 
 # --- FAMILIA 1: ENFOQUE SUPERVISADO ---
 
