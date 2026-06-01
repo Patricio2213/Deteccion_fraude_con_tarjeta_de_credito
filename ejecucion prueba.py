@@ -7,6 +7,7 @@ from EDA import *
 from models import *
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
+
 plt.rcParams.update({
     'figure.facecolor': 'white',
     'axes.facecolor': 'white',
@@ -265,10 +266,9 @@ for col in X_train_final.columns:
 print(f"\n🚀 Iniciando Optimización Bayesiana para XGBoost (Rangos: Tayebi & El Kafhali)...")
 
 # Crear el estudio de Optuna
-study = optuna.create_study(direction='maximize')
-
+sampler_fijo = optuna.samplers.TPESampler(seed=42)
+study = optuna.create_study(direction="maximize", sampler=sampler_fijo)
 # Ejecutamos la optimización (n_trials=20 )
-# LE PASAMOS X_TRAIN_RAW PARA NO DEJAR PISTAS A LA HORA DE VALIDAR A CAUSA DE LOS DATOS ESCALADOS
 study.optimize(lambda trial: objective_xgboost(trial, X_train_raw, y_train, preprocessor), n_trials=20)
 print(f"✅ Mejores Hiperparámetros encontrados: {study.best_params}")
 

@@ -1,4 +1,5 @@
 import torch
+import random
 from sklearn.pipeline import Pipeline
 import pandas as pd
 import numpy as np
@@ -19,6 +20,14 @@ from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.functional as F
 import torch.optim as optim
+np.random.seed(42)
+random.seed(42)
+torch.manual_seed(42)
+
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 # --- FAMILIA 1: ENFOQUE SUPERVISADO ---
 
@@ -63,8 +72,7 @@ def objective_xgboost(trial, X_raw, y, preprocessor): # <-- Ahora le pasamos tam
         'gamma': trial.suggest_float('gamma', 0.1, 1.0),
         'eval_metric': 'logloss',
         'random_state': 42,
-        'n_jobs': -1
-    }
+        'n_jobs': 1,"tree_method": "hist"}
 
     # El secreto académico: El Pipeline encapsula el escalador dentro del proceso de CV
     pipeline_cv = Pipeline([
@@ -79,17 +87,24 @@ def objective_xgboost(trial, X_raw, y, preprocessor): # <-- Ahora le pasamos tam
         pipeline_cv, X_raw, y,
         cv=cv,
         scoring='roc_auc',
-        n_jobs=-1
+        n_jobs=1
     ).mean()
 
     return score
 def get_xgboost(params=None):
     # Si no pasamos parámetros, usa unos por defecto
     if params is None:
-        return XGBClassifier(n_estimators=100, max_depth=6, learning_rate=0.1, eval_metric='logloss', random_state=42)
-    # Si pasamos los optimizados, los usa
-    return XGBClassifier(**params)
+        return XGBClassifier(n_estimators=100, max_depth=6, learning_rate=0.1, eval_metric='logloss', random_state=42,n_jobs=1,tree_method= "hist")
+# Si pasamos los optimizados de Optuna, le inyectamos el n_jobs y el histograma por seguridad
+    else:
+        params_actualizados = params.copy()
+        params_actualizados["n_jobs"] = 1
+        params_actualizados["tree_method"] = "hist"
+        params_actualizados["deterministic_histogram"] = True
+        params_actualizados["eval_metric"] = "logloss"
+        params_actualizados["random_state"] = 42
 
+        return XGBClassifier(**params_actualizados)
 
 # MLP: Red Neuronal para Clasificación
 class MLP(nn.Module):
