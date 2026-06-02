@@ -173,10 +173,12 @@ gc.collect()
 
 target = 'is_fraud'
 columnas_drop = [target, "trans_date_trans_time", "street", "first", "last",
-                 "merchant", "city", "dob", "lat", "long", "merch_lat", "merch_long", "job", "amt", "city_pop","category",
+                 "merchant", "city", "dob", "lat", "long", "merch_lat", "merch_long", "job", "amt", "city_pop",
                  "velocidad", "delta_tiempo_local", "delta_tiempo_internet", "velocidad_local", "velocidad_internet",
                  "distancia_local", "distancia_internet", "d_cliente_comercio_loc", "d_cliente_comercio_int", "is_first_buy",'Unnamed: 0', 'cc_num', 'unix_time',"is_fraud","zip","trans_num","trans_date_trans_time"]
-
+#-------------------------------------------------------
+#SACAR LAS 2 DISTANCIAS DE INTERNET (EVALUAR CON LAS LISTAS)
+#-------------------------------------------------------
 X_train_raw = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
 X_test_raw  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
 y_train = train_df[target]
