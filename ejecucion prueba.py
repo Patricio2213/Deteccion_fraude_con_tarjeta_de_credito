@@ -325,7 +325,7 @@ y_prob_lof_max = np.maximum.reduce(scores_acumulados)
 # Normalización para el Benchmark
 y_prob_lof_final = (y_prob_lof_max - y_prob_lof_max.min()) / (y_prob_lof_max.max() - y_prob_lof_max.min() + 1e-9)
 
-evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.3021)
+evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.6811)
 
 # --- 6. PREPARACIÓN PARA REDES NEURONALES (PyTorch) ---
 X_train_tensor = torch.from_numpy(X_train_scaled.copy()).float()
@@ -579,12 +579,12 @@ print("=" * 50)
 print(df_resumen[['modelo', 'costo_total', 'ahorro', 'ahorro_pct', 'fp', 'fn']])
 
 info_modelos = {
-    'Regresión Logística': {'probabilidades': y_prob_logit, 'umbral_f1': 0.9975},
-    'XGBoost': {'probabilidades': y_prob_xgb, 'umbral_f1': 0.3202},
+    'Regresión Logística': {'probabilidades': y_prob_logit, 'umbral_f1': 0.1667},
+    'XGBoost': {'probabilidades': y_prob_xgb, 'umbral_f1': 0.2337},
     'MLP': {'probabilidades': y_prob_mlp, 'umbral_f1': 0.9991},  # Umbral actualizado según tu entrenamiento
     'Autoencoder': {'probabilidades': y_prob_ae_norm, 'umbral_f1': 0.0553},  # Usamos versión normalizada
-    'Isolation Forest': {'probabilidades': y_prob_iso, 'umbral_f1': 0.8840},
-    'LOF': {'probabilidades': y_prob_lof_final, 'umbral_f1': 0.2100}
+    'Isolation Forest': {'probabilidades': y_prob_iso, 'umbral_f1': 0.8109},
+    'LOF': {'probabilidades': y_prob_lof_final, 'umbral_f1': 0.6811}
 }
 
 # Ejecución de la matriz comparativa total (F1 vs Bayes)
