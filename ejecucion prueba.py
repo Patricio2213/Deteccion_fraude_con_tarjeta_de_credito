@@ -248,7 +248,7 @@ try:
     print(logit_res.summary())
 
     y_prob_logit = logit_res.predict(X_test_stat)
-    evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.1667)
+    evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.1882)
 
 except Exception as e:
     print(f"⚠️ Nota de Tesis: La Regresión Logística no convergió por inestabilidad numérica.")
@@ -289,7 +289,7 @@ xgb_model_final.fit(X_train_scaled, y_train)
 
 # Predicción y Evaluación
 y_prob_xgb = xgb_model_final.predict_proba(X_test_scaled)[:, 1]
-evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.2337)
+evaluar_modelo("XGBoost Optimizado", y_test, y_prob_xgb, umbral=0.2843)
 
 
 
@@ -327,7 +327,7 @@ y_prob_lof_max = np.maximum.reduce(scores_acumulados)
 # Normalización para el Benchmark
 y_prob_lof_final = (y_prob_lof_max - y_prob_lof_max.min()) / (y_prob_lof_max.max() - y_prob_lof_max.min() + 1e-9)
 
-evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.6811)
+evaluar_modelo("LOF (Rango 20-50)", y_test, y_prob_lof_final, umbral=0.0143)
 
 # --- 6. PREPARACIÓN PARA REDES NEURONALES (PyTorch) ---
 X_train_tensor = torch.from_numpy(X_train_scaled.copy()).float()
@@ -377,7 +377,7 @@ for epoch in range(num_epochs):
 mlp_model.eval()
 with torch.no_grad():
     y_prob_mlp = torch.sigmoid(mlp_model(X_test_tensor)).numpy().flatten()
-    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=1)
+    evaluar_modelo("MLP Balanceado", y_test, y_prob_mlp, umbral=0.9949)
 """
 # --- GRÁFICA DE SALIDA (Separada del flujo de entrenamiento) ---
 plt.figure(figsize=(8, 4))
@@ -487,29 +487,62 @@ df_umbrales = pd.DataFrame(resultados_umbrales)
 print("\n=== RESULTADOS DE OPTIMIZACIÓN DE UMBRALES ===")
 print(df_umbrales[['Modelo', 'Umbral_Optimo', 'F1_Score', 'FP', 'FN']])
 
+# ==============================================================================
+# 🎯 EVALUACIÓN DE APRENDIZAJE EN TRAIN (LOS 6 MODELOS DE LA TESIS)
+# ==============================================================================
+print("\n" + "=" * 60)
+print("🔥 INICIANDO AUDITORÍA DE APRENDIZAJE: MUESTRA TRAIN")
+print("=" * 60)
 
-"""
-# --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
-nombres_columnas = preprocessor.get_feature_names_out()
+# Reseteamos el target de entrenamiento a un array limpio de NumPy
+y_train_arr = y_train.values
 
-# Modelos Supervisados
-aplicar_shap_tesis_final(xgb_model_final, X_test_scaled, nombres_columnas, "XGBoost")
-aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP", es_pytorch=True)
+if 'logit_res' in locals():
+    y_prob_logit_train = logit_res.predict(X_train_stat)
+    evaluar_aprendizaje_train("Regresión Logística", y_train_arr, y_prob_logit_train)
 
-# CORREGIDO: Pasamos logit_res y activamos el flag de statsmodels
-aplicar_shap_tesis_final(logit_res, X_test_scaled, nombres_columnas, "Regresión Logística", es_statsmodels=True)
+if 'xgb_model_final' in locals():
+    y_prob_xgb_train = xgb_model_final.predict_proba(X_train_scaled)[:, 1]
+    evaluar_aprendizaje_train("XGBoost Optimizado", y_train_arr, y_prob_xgb_train)
 
-# Modelos No Supervisados / Anomalías
-aplicar_shap_tesis_final(iso_forest, X_test_scaled, nombres_columnas, "Isolation Forest")
-aplicar_shap_tesis_final(ae_model, X_test_scaled, nombres_columnas, "Autoencoder", es_pytorch=True)
-# Ejecución de la interpretabilidad para LOF
-df_res_lofo = aplicar_lofo_tesis_final(
-    X_train_scaled,
-    X_test_scaled,
-    nombres_columnas,
-    nombre_modelo="LOF_Rango_20_50"
-)
-"""
+if 'mlp_model' in locals():
+    mlp_model.eval()
+    with torch.no_grad():
+        y_prob_mlp_train = torch.sigmoid(mlp_model(X_train_tensor)).cpu().numpy().flatten()
+    evaluar_aprendizaje_train("MLP Balanceado", y_train_arr, y_prob_mlp_train)
+
+if 'iso_forest' in locals():
+    y_prob_iso_train_raw = -iso_forest.decision_function(X_train_scaled)
+    # Normalización Min-Max local para consistencia en el reporte 0-1
+    y_prob_iso_train = (y_prob_iso_train_raw - y_prob_iso_train_raw.min()) / (
+                y_prob_iso_train_raw.max() - y_prob_iso_train_raw.min() + 1e-9)
+    evaluar_aprendizaje_train("Isolation Forest", y_train_arr, y_prob_iso_train)
+
+if 'rango_vecinos' in locals():
+    scores_acum_train = []
+    for k in rango_vecinos:
+        lof_t = get_lof(neighbors=k)
+        lof_t.fit(X_train_scaled)  # Se ajusta y extrae sobre el mismo set
+        scores_acum_train.append(-lof_t.score_samples(X_train_scaled))
+
+    y_prob_lof_max_train = np.maximum.reduce(scores_acum_train)
+    y_prob_lof_train = (y_prob_lof_max_train - y_prob_lof_max_train.min()) / (
+                y_prob_lof_max_train.max() - y_prob_lof_max_train.min() + 1e-9)
+    evaluar_aprendizaje_train("LOF (Rango 20-50)", y_train_arr, y_prob_lof_train)
+
+if 'ae_model' in locals():
+    ae_model.eval()
+    with torch.no_grad():
+        reconst_train = ae_model(X_train_tensor)
+        mse_train_raw = torch.mean((X_train_tensor - reconst_train) ** 2, dim=1).cpu().numpy()
+
+    # Normalización de los errores de reconstrucción a escala 0-1
+    y_prob_ae_train = (mse_train_raw - mse_train_raw.min()) / (mse_train_raw.max() - mse_train_raw.min() + 1e-9)
+    evaluar_aprendizaje_train("Autoencoder", y_train_arr, y_prob_ae_train)
+
+print("=" * 60)
+print("✅ Auditoría de entrenamiento completada de forma exitosa.")
+print("=" * 60)
 # --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
 
 # 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)
@@ -581,12 +614,12 @@ print("=" * 50)
 print(df_resumen[['modelo', 'costo_total', 'ahorro', 'ahorro_pct', 'fp', 'fn']])
 
 info_modelos = {
-    'Regresión Logística': {'probabilidades': y_prob_logit, 'umbral_f1': 0.1667},
-    'XGBoost': {'probabilidades': y_prob_xgb, 'umbral_f1': 0.2337},
-    'MLP': {'probabilidades': y_prob_mlp, 'umbral_f1': 0.9991},  # Umbral actualizado según tu entrenamiento
+    'Regresión Logística': {'probabilidades': y_prob_logit, 'umbral_f1': 0.1882},
+    'XGBoost': {'probabilidades': y_prob_xgb, 'umbral_f1': 0.2843},
+    'MLP': {'probabilidades': y_prob_mlp, 'umbral_f1': 0.9949},  # Umbral actualizado según tu entrenamiento
     'Autoencoder': {'probabilidades': y_prob_ae_norm, 'umbral_f1': 0.0553},  # Usamos versión normalizada
     'Isolation Forest': {'probabilidades': y_prob_iso, 'umbral_f1': 0.8109},
-    'LOF': {'probabilidades': y_prob_lof_final, 'umbral_f1': 0.6811}
+    'LOF': {'probabilidades': y_prob_lof_final, 'umbral_f1': 0.0143}
 }
 
 # Ejecución de la matriz comparativa total (F1 vs Bayes)
@@ -806,4 +839,27 @@ ranks_auc_ctrl, holm_auc_ctrl = pipeline_iman_davenport_holm_control(
 
 ranks_ahorro_ctrl, holm_ahorro_ctrl = pipeline_iman_davenport_holm_control(
     df_iman_ahorro, "Ahorro Financiero (Bayes)", modelo_control="XGBoost", buscar_maximo=True
+)
+
+
+
+# --- FASE FINAL: INTERPRETABILIDAD COMPARATIVA ---
+nombres_columnas = preprocessor.get_feature_names_out()
+
+# Modelos Supervisados
+aplicar_shap_tesis_final(xgb_model_final, X_test_scaled, nombres_columnas, "XGBoost")
+aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP", es_pytorch=True)
+
+# CORREGIDO: Pasamos logit_res y activamos el flag de statsmodels
+aplicar_shap_tesis_final(logit_res, X_test_scaled, nombres_columnas, "Regresión Logística", es_statsmodels=True)
+
+# Modelos No Supervisados / Anomalías
+aplicar_shap_tesis_final(iso_forest, X_test_scaled, nombres_columnas, "Isolation Forest")
+aplicar_shap_tesis_final(ae_model, X_test_scaled, nombres_columnas, "Autoencoder", es_pytorch=True)
+# Ejecución de la interpretabilidad para LOF
+df_res_lofo = aplicar_lofo_tesis_final(
+    X_train_scaled,
+    X_test_scaled,
+    nombres_columnas,
+    nombre_modelo="LOF_Rango_20_50"
 )

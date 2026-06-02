@@ -237,6 +237,31 @@ def evaluar_modelo(nombre, y_real, y_prob, umbral=None):
     }
 
 
+def evaluar_aprendizaje_train(nombre_modelo, y_real_train, y_prob_train):
+    from sklearn.metrics import roc_auc_score, precision_recall_curve, auc
+    import pandas as pd
+
+    # 1. Calcular AUC-ROC
+    roc_auc = roc_auc_score(y_real_train, y_prob_train)
+
+    # 2. Calcular AUC-PR (Área bajo la curva Precisión-Recall)
+    precision, recall, _ = precision_recall_curve(y_real_train, y_prob_train)
+    pr_auc = auc(recall, precision)
+
+    # 3. Imprimir de forma idéntica y limpia en la consola
+    print(f"\n📈 RENDIMIENTO EN ENTRENAMIENTO (TRAIN): {nombre_modelo}")
+    print(f"  - AUC-ROC: {roc_auc:.4f}")
+    print(f"  - AUC-PR:  {pr_auc:.4f}")
+    print("-" * 50)
+
+    # Devolvemos un diccionario por si después quieres armar un DataFrame con los 6
+    return {
+        "Modelo": nombre_modelo,
+        "AUC-ROC (Train)": round(roc_auc, 4),
+        "AUC-PR (Train)": round(pr_auc, 4)
+    }
+
+
 def aplicar_shap_tesis_final(model, X_data_numpy, feature_names, nombre_modelo="Modelo", es_pytorch=False,
                              es_lof=False, es_statsmodels=False):  # <--- Agregamos este parámetro nuevo
     print(f"\n" + "=" * 40)
@@ -458,7 +483,7 @@ def aplicar_lofo_tesis_final(X_train_scaled, X_test_scaled, feature_names, nombr
 def encontrar_mejor_umbral(nombre_modelo, y_real, y_prob):
     # Calculamos precision, recall y los umbrales posibles
     precision, recall, thresholds = precision_recall_curve(y_real, y_prob)
-    
+
     precision_corr = precision[:-1]
     recall_corr = recall[:-1]
 
