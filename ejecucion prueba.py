@@ -27,9 +27,9 @@ data_test=buscar_y_cargar("fraudTest.csv")
 
 data=pd.concat([data_train, data_test], ignore_index=True)
 data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
-data = distancia_entre_comercios(data)
-data = calcular_velocidad(data)
-data = distancia_cliente_comercio(data)
+#data = distancia_entre_comercios(data)
+#data = calcular_velocidad(data)
+#data = distancia_cliente_comercio(data)
 data["es_nuevo"] = nuevo_comercio(data)
 
 print("fechas data entrenamiento")
@@ -68,9 +68,9 @@ data_test['trans_date_trans_time'] = pd.to_datetime(data_test['trans_date_trans_
 
 # --- variables train ---
 print("⏳ Procesando métricas geográficas y de comportamiento en DATA_TRAIN...")
-#data_train = distancia_entre_comercios(data_train)
-#data_train = calcular_velocidad(data_train)
-#data_train = distancia_cliente_comercio(data_train)
+data_train = distancia_entre_comercios(data_train)
+data_train = calcular_velocidad(data_train)
+data_train = distancia_cliente_comercio(data_train)
 
 data_train["edad"] = calcular_edad(data_train)
 #data_train["tasa_categoria"] = calcular_anomaliaencategoria(data_train)
@@ -111,9 +111,9 @@ data_test["tasa_fraude_categoria"] = data_test["tasa_fraude_categoria"].fillna(
 )
 # --- Variables para test---
 print("⏳ Procesando métricas geográficas y de comportamiento en DATA_TEST...")
-#data_test = distancia_entre_comercios(data_test)
-#data_test = calcular_velocidad(data_test)
-#data_test = distancia_cliente_comercio(data_test)
+data_test = distancia_entre_comercios(data_test)
+data_test = calcular_velocidad(data_test)
+data_test = distancia_cliente_comercio(data_test)
 
 data_test["edad"] = calcular_edad(data_test)
 #data_test["tasa_categoria"] = calcular_anomaliaencategoria(data_test)
