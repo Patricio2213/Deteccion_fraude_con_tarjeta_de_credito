@@ -56,34 +56,43 @@ def objective_xgboost(trial, X, y):
 
     return score
 """
-def objective_xgboost(trial, X_raw, y, preprocessor): # <-- Ahora le pasamos también el preprocesador
-    # Rangos sugeridos basados en la literatura para mitigar el sobreajuste
+
+
+def objective_xgboost(trial, X_train_raw, y_train, X_val_raw, y_val, preprocessor):
+    #parametros sugeridos
     param = {
         'n_estimators': trial.suggest_int('n_estimators', 50, 250),
         'max_depth': trial.suggest_int('max_depth', 3, 7),
         'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3),
         'gamma': trial.suggest_float('gamma', 0.1, 1.0),
         'eval_metric': 'logloss',
-        'random_state': 42,
-        'n_jobs': 1,"tree_method": "hist"}
+        'n_jobs': 1,
+        'tree_method': 'hist',
+        
+        'random_state': None
+    }
 
-    # El secreto académico: El Pipeline encapsula el escalador dentro del proceso de CV
-    pipeline_cv = Pipeline([
-        ('preprocesador', preprocessor),
-        ('classifier', XGBClassifier(**param))
-    ])
+    scores_trial = []
 
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    #Preprocesamiento  dentro del Trial (Aislado)
+    X_train_proc = preprocessor.fit_transform(X_train_raw)
+    X_val_proc = preprocessor.transform(X_val_raw)
 
-    # La validación cruzada opera directamente sobre el pipeline con los datos RAW
-    score = cross_val_score(
-        pipeline_cv, X_raw, y,
-        cv=cv,
-        scoring='roc_auc',
-        n_jobs=1
-    ).mean()
+    #Corremos el modelo 5 veces por trial con inicialización aleatoria pura
+    for i in range(5):
+        model = XGBClassifier(**param)
+        model.fit(X_train_proc, y_train)
 
-    return score
+        # Predicción en el set de Validación
+        y_prob_val = model.predict_proba(X_val_proc)[:, 1]
+        auc_corrida = roc_auc_score(y_val, y_prob_val)
+
+        scores_trial.append(auc_corrida)
+
+    # Devolvemos la MEDIANA de las 5 corridas aleatorias
+    metrica_final = np.median(scores_trial)
+
+    return metrica_final
 def get_xgboost(params=None):
     # Si no pasamos parámetros, usa unos por defecto
     if params is None:

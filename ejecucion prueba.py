@@ -1,6 +1,6 @@
 #Carga de funciones
 import gc
-
+from sklearn.model_selection import train_test_split
 from Subida_data import *
 from procesamiento_bases import *
 from EDA import *
@@ -32,6 +32,20 @@ data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
 #data = distancia_cliente_comercio(data)
 data["es_nuevo"] = nuevo_comercio(data)
 
+#--------------------------
+#division en 3 datas
+#--------------------------
+data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
+
+df_filtrado = data[
+    (data['trans_date_trans_time'].dt.year == 2020) &
+    (data['trans_date_trans_time'].dt.month.isin([7, 8, 9, 10, 11, 12]))
+].copy()
+
+reporte_fechas = df_filtrado.groupby(df_filtrado['trans_date_trans_time'].dt.month)['trans_date_trans_time'].agg(['min', 'max'])
+
+print(reporte_fechas)
+
 print("fechas data entrenamiento")
 print(data_train["trans_date_trans_time"].min())
 print(data_train["trans_date_trans_time"].max())
@@ -42,16 +56,17 @@ print(data_test["trans_date_trans_time"].max())
 
 fecha_entreno_inicio = '2019-01-01 00:00:18'
 fecha_entreno_fin    = '2020-06-21 12:13:37'
-fecha_prueba_inicio  = '2020-06-21 12:14:25'
+fecha_val_inicio="2020-06-21 12:14:25"
+fecha_val_fin="2020-08-31 23:59:31"
+fecha_prueba_inicio  = '2020-09-01 00:01:26'
 fecha_prueba_fin     = '2020-12-31 23:59:34'
 
 # Extraemos los conjuntos completos respetando los cortes temporales estrictos
 data_train = data[(data['trans_date_trans_time'] >= fecha_entreno_inicio) &
                         (data['trans_date_trans_time'] <= fecha_entreno_fin)].copy()
-
+data_valid=data[(data["trans_date_trans_time"]>= fecha_val_inicio)&(data["trans_date_trans_time"]>= fecha_val_fin)]
 data_test = data[(data['trans_date_trans_time'] >= fecha_prueba_inicio) &
                       (data['trans_date_trans_time'] <= fecha_prueba_fin)].copy()
-
 
 
 
@@ -100,15 +115,18 @@ tasa_categoria_map = (
 # Mapeamos ese diccionario en el set de Entrenamiento
 data_train["tasa_fraude_categoria"] = data_train["category"].map(tasa_categoria_map)
 
-# Mapeamos el MISMO diccionario en el set de Testeo (Heredamos el pasado al futuro)
+# Mapeamos el MISMO diccionario en el resto de datas (Heredamos el pasado al futuro)
 data_test["tasa_fraude_categoria"] = data_test["category"].map(tasa_categoria_map)
+data_valid["tasa_fraude_categoria"] = data_valid["category"].map(tasa_categoria_map)
+
 
 # Control de seguridad: Si en Test aparece una categoría que no existía en Train,
 # el mapa arrojará NaN. Lo llenamos con la tasa de fraude global de Train.
 tasa_global_train = data_train["is_fraud"].mean()
 data_test["tasa_fraude_categoria"] = data_test["tasa_fraude_categoria"].fillna(
-    tasa_global_train
-)
+    tasa_global_train)
+data_valid["tasa_fraude_categoria"] = data_valid["tasa_fraude_categoria"].fillna(
+    tasa_global_train)
 # --- Variables para test---
 print("⏳ Procesando métricas geográficas y de comportamiento en DATA_TEST...")
 data_test = distancia_entre_comercios(data_test)
@@ -133,6 +151,29 @@ data_test["d_cliente_comercio_log_int"] = np.log1p(data_test["d_cliente_comercio
 
 data_test["es_online"] = data_test["category"].isin(categorias_net).astype(int)
 
+# --- Variables para validacion---
+print("⏳ Procesando métricas geográficas y de comportamiento en DATA_VALID...")
+data_valid = distancia_entre_comercios(data_valid)
+data_valid = calcular_velocidad(data_valid)
+data_valid = distancia_cliente_comercio(data_valid)
+
+data_valid["edad"] = calcular_edad(data_test)
+#data_valid["tasa_categoria"] = calcular_anomaliaencategoria(data_valid)
+#data_valid["es_nuevo"] = nuevo_comercio(data_valid)
+
+# Aplicación de transformaciones logarítmicas para validacion
+data_valid["monto_log"] = np.log1p(data_valid["amt"])
+data_valid["poblacion_ciudad_log"] = np.log1p(data_valid["city_pop"])
+data_valid["velocidad_log_local"] = np.log1p(data_valid["velocidad_local"])
+data_valid["velocidad_log_internet"] = np.log1p(data_valid["velocidad_internet"])
+data_valid["diferencia_tiempo_log_local"] = np.log1p(data_valid["delta_tiempo_local"])
+data_valid["diferencia_tiempo_log_internet"] = np.log1p(data_valid["delta_tiempo_internet"])
+data_valid["distancia_log_local"] = np.log1p(data_valid["distancia_local"])
+data_valid["distancia_log_internet"] = np.log1p(data_valid["distancia_internet"])
+data_valid["d_cliente_comercio_log_local"] = np.log1p(data_valid["d_cliente_comercio_loc"])
+data_valid["d_cliente_comercio_log_int"] = np.log1p(data_valid["d_cliente_comercio_int"])
+
+data_valid["es_online"] = data_valid["category"].isin(categorias_net).astype(int)
 
 
 
@@ -140,13 +181,15 @@ data_test["es_online"] = data_test["category"].isin(categorias_net).astype(int)
 del data
 gc.collect()
 
-# Definición de volúmenes de submuestreo metodológico
-n_train = 160000
-n_test  = 40000
 
 #train_df = full_train.sample(n=min(n_train, len(full_train)), random_state=42).copy()
 #test_df  = full_test.sample(n=min(n_test, len(full_test)), random_state=42).copy()
+train_df = train_test_split(data_train, test_size=160000, stratify=data_train["is_fraud"], random_state=42)
+test_df = train_test_split(data_test, test_size=40000, stratify=data_test["is_fraud"], random_state=42)
+val_df = train_test_split(data_valid, test_size=40000, stratify=data_valid["is_fraud"], random_state=42)
 
+
+"""
 # ordenamos full_train cronologicamente
 full_train = data_train.sort_values(
     "trans_date_trans_time"
@@ -161,28 +204,27 @@ full_test = data_test.sort_values("trans_date_trans_time").reset_index(
 )
 #aqui usamos las primeras 40000 obs
 test_df = full_test.head(n_test).copy()
-
+"""
 # --- Ingeniería de Variables Temporales en los DataFrames ---
-for df_temp in [train_df, test_df]:
+for df_temp in [train_df, test_df,val_df]:
     df_temp['hora'] = df_temp['trans_date_trans_time'].dt.hour
     df_temp['mes'] = df_temp['trans_date_trans_time'].dt.month
 
-del data_train
-del data_test
-gc.collect()
 
 target = 'is_fraud'
 columnas_drop = [target, "trans_date_trans_time", "street", "first", "last",
                  "merchant", "city", "dob", "lat", "long", "merch_lat", "merch_long", "job", "amt", "city_pop",
                  "velocidad", "delta_tiempo_local", "delta_tiempo_internet", "velocidad_local", "velocidad_internet",
                  "distancia_local", "distancia_internet", "d_cliente_comercio_loc", "d_cliente_comercio_int", "is_first_buy",'Unnamed: 0', 'cc_num', 'unix_time',"is_fraud","zip","trans_num","trans_date_trans_time"]
-#-------------------------------------------------------
-#SACAR LAS 2 DISTANCIAS DE INTERNET (EVALUAR CON LAS LISTAS)
-#-------------------------------------------------------
+
 X_train_raw = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
 X_test_raw  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
+X_val_raw  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
+
 y_train = train_df[target]
 y_test  = test_df[target]
+y_val  = val_df[target]
+
 
 cat_columns = X_train_raw.select_dtypes(include=['object', 'string']).columns.tolist()
 num_columns = X_train_raw.select_dtypes(include=['number']).columns.tolist()
@@ -276,10 +318,17 @@ for col in X_train_final.columns:
 print(f"\n🚀 Iniciando Optimización Bayesiana para XGBoost (Rangos: Tayebi & El Kafhali)...")
 
 # Crear el estudio de Optuna
-sampler_fijo = optuna.samplers.TPESampler(seed=42)
-study = optuna.create_study(direction="maximize", sampler=sampler_fijo)
+sampler_aleatorio = optuna.samplers.TPESampler(seed=None)
+study = optuna.create_study(direction="maximize", sampler=sampler_aleatorio)
 # Ejecutamos la optimización (n_trials=20 )
-study.optimize(lambda trial: objective_xgboost(trial, X_train_raw, y_train, preprocessor), n_trials=20)
+study.optimize(
+    lambda trial: objective_xgboost(trial, X_train_raw, y_train, X_val_raw, y_val, preprocessor),
+    n_trials=20
+)
+datos_a_guardar = study.best_params.copy()
+datos_a_guardar['mejor_auc_val_mediana'] = study.best_value
+df_mejores_parametros = pd.DataFrame([datos_a_guardar])
+df_mejores_parametros.to_excel("mejores_hiperparametros_xgboost.xlsx", index=False)
 print(f"✅ Mejores Hiperparámetros encontrados: {study.best_params}")
 
 # Entrenamos el modelo final con los mejores parámetros encontrados
@@ -653,8 +702,8 @@ print("=" * 60)
 fecha_rob_inicio = '2020-12-01 00:00:00'
 fecha_rob_fin = '2020-12-31 23:59:34'
 
-df_robustez_raw = full_test[(full_test['trans_date_trans_time'] >= fecha_rob_inicio) &
-                       (full_test['trans_date_trans_time'] <= fecha_rob_fin)].copy()
+df_robustez_raw = data_test[(data_test['trans_date_trans_time'] >= fecha_rob_inicio) &
+                       (data_test['trans_date_trans_time'] <= fecha_rob_fin)].copy()
 
 print(f"🔹 Registros encontrados para la prueba de estrés de diciembre: {len(df_robustez_raw)}")
 
