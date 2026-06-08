@@ -64,7 +64,7 @@ fecha_prueba_fin     = '2020-12-31 23:59:34'
 # Extraemos los conjuntos completos respetando los cortes temporales estrictos
 data_train = data[(data['trans_date_trans_time'] >= fecha_entreno_inicio) &
                         (data['trans_date_trans_time'] <= fecha_entreno_fin)].copy()
-data_valid=data[(data["trans_date_trans_time"]>= fecha_val_inicio)&(data["trans_date_trans_time"]>= fecha_val_fin)]
+data_valid=data[(data["trans_date_trans_time"]>= fecha_val_inicio)&(data["trans_date_trans_time"]<= fecha_val_fin)]
 data_test = data[(data['trans_date_trans_time'] >= fecha_prueba_inicio) &
                       (data['trans_date_trans_time'] <= fecha_prueba_fin)].copy()
 
@@ -184,9 +184,9 @@ gc.collect()
 
 #train_df = full_train.sample(n=min(n_train, len(full_train)), random_state=42).copy()
 #test_df  = full_test.sample(n=min(n_test, len(full_test)), random_state=42).copy()
-train_df = train_test_split(data_train, test_size=160000, stratify=data_train["is_fraud"], random_state=42)
-test_df = train_test_split(data_test, test_size=40000, stratify=data_test["is_fraud"], random_state=42)
-val_df = train_test_split(data_valid, test_size=40000, stratify=data_valid["is_fraud"], random_state=42)
+_,train_df = train_test_split(data_train, test_size=160000, stratify=data_train["is_fraud"], random_state=42)
+_,test_df = train_test_split(data_test, test_size=40000, stratify=data_test["is_fraud"], random_state=42)
+_,val_df = train_test_split(data_valid, test_size=40000, stratify=data_valid["is_fraud"], random_state=42)
 
 
 """
@@ -219,7 +219,7 @@ columnas_drop = [target, "trans_date_trans_time", "street", "first", "last",
 
 X_train_raw = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
 X_test_raw  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
-X_val_raw  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
+X_val_raw  = val_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
 
 y_train = train_df[target]
 y_test  = test_df[target]
