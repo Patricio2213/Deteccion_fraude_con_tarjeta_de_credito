@@ -27,13 +27,11 @@ data_test=buscar_y_cargar("fraudTest.csv")
 
 data=pd.concat([data_train, data_test], ignore_index=True)
 data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
-#data = distancia_entre_comercios(data)
-#data = calcular_velocidad(data)
-#data = distancia_cliente_comercio(data)
+#Se calcula nuevo comercio sobre la data original para que no existan 3 periodos distintos de enfriamiento, las bases solo tienen información anterior y no futura
 data["es_nuevo"] = nuevo_comercio(data)
 
 #--------------------------
-#division en 3 datas
+#Codigo para ver fechas de inicio y fin de las transacciones de cada mes para dividir de forma exacta la base
 #--------------------------
 data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
 
@@ -181,30 +179,12 @@ data_valid["es_online"] = data_valid["category"].isin(categorias_net).astype(int
 del data
 gc.collect()
 
-
-#train_df = full_train.sample(n=min(n_train, len(full_train)), random_state=42).copy()
-#test_df  = full_test.sample(n=min(n_test, len(full_test)), random_state=42).copy()
+#Con este codigo dividimos la muestra de forma estratificada y usé _, pq divide la base en 2, así que la parte que no usamos se va a "_"
 _,train_df = train_test_split(data_train, test_size=160000, stratify=data_train["is_fraud"], random_state=42)
 _,test_df = train_test_split(data_test, test_size=40000, stratify=data_test["is_fraud"], random_state=42)
 _,val_df = train_test_split(data_valid, test_size=40000, stratify=data_valid["is_fraud"], random_state=42)
 
 
-"""
-# ordenamos full_train cronologicamente
-full_train = data_train.sort_values(
-    "trans_date_trans_time"
-).reset_index(drop=True)
-
-# usamos las ultimas observaciones de full train
-train_df = full_train.tail(n_train).copy()
-
-# ordenamos cronologicamente full_test
-full_test = data_test.sort_values("trans_date_trans_time").reset_index(
-    drop=True
-)
-#aqui usamos las primeras 40000 obs
-test_df = full_test.head(n_test).copy()
-"""
 # --- Ingeniería de Variables Temporales en los DataFrames ---
 for df_temp in [train_df, test_df,val_df]:
     df_temp['hora'] = df_temp['trans_date_trans_time'].dt.hour

@@ -74,11 +74,11 @@ def objective_xgboost(trial, X_train_raw, y_train, X_val_raw, y_val, preprocesso
 
     scores_trial = []
 
-    #Preprocesamiento  dentro del Trial (Aislado)
+    #Preprocesamiento  dentro del Trial para que no se filtre información entre ellos
     X_train_proc = preprocessor.fit_transform(X_train_raw)
     X_val_proc = preprocessor.transform(X_val_raw)
 
-    #Corremos el modelo 5 veces por trial con inicialización aleatoria pura
+    #Corremos el modelo 5 veces por trial con inicialización aleatoria pura como pidió el profe
     for i in range(5):
         model = XGBClassifier(**param)
         model.fit(X_train_proc, y_train)
@@ -89,7 +89,7 @@ def objective_xgboost(trial, X_train_raw, y_train, X_val_raw, y_val, preprocesso
 
         scores_trial.append(auc_corrida)
 
-    # Devolvemos la MEDIANA de las 5 corridas aleatorias
+    # devuelve la MEDIANA de las 5 corridas aleatorias por trial
     metrica_final = np.median(scores_trial)
 
     return metrica_final
