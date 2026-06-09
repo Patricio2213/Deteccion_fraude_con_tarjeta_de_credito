@@ -260,6 +260,14 @@ y_test_reset = y_test.reset_index(drop=True)
 X_train_stat = sm.add_constant(X_train_final)
 X_test_stat = sm.add_constant(X_test_final)
 
+#Guardar data 
+
+X_train_final.to_csv("X_train_procesado.csv", index=False)
+X_test_final.to_csv("X_test_procesado.csv", index=False)
+y_train_reset.to_frame(name='is_fraud').to_csv("y_train_procesado.csv", index=False)
+y_test_reset.to_frame(name='is_fraud').to_csv("y_test_procesado.csv", index=False)
+
+
 # 4. Asegurar que las columnas de Test sean IDENTICAS a las de Train
 # Si falta una columna en Test que estaba en Train, la crea con ceros
 X_test_stat = X_test_stat.reindex(columns=X_train_stat.columns, fill_value=0)
