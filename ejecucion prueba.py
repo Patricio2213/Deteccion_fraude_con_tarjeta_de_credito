@@ -57,7 +57,7 @@ fecha_entreno_fin    = '2020-06-21 12:13:37'
 fecha_val_inicio="2020-06-21 12:14:25"
 fecha_val_fin="2020-08-31 23:59:31"
 fecha_prueba_inicio  = '2020-09-01 00:01:26'
-fecha_prueba_fin     = '2020-12-31 23:59:34'
+fecha_prueba_fin     = '2020-11-30 23:59:45'
 
 # Extraemos los conjuntos completos respetando los cortes temporales estrictos
 data_train = data[(data['trans_date_trans_time'] >= fecha_entreno_inicio) &
@@ -103,7 +103,7 @@ data_train["d_cliente_comercio_log_int"] = np.log1p(data_train["d_cliente_comerc
 
 categorias_net = ["grocery_net", "misc_net", "shopping_net"]
 data_train["es_online"] = data_train["category"].isin(categorias_net).astype(int)
-
+"""
 # Calculamos la proporción de fraude por categoría usando SOLO los datos de entrenamiento
 # Categoría -> Probabilidad de fraude histórica
 tasa_categoria_map = (
@@ -125,6 +125,7 @@ data_test["tasa_fraude_categoria"] = data_test["tasa_fraude_categoria"].fillna(
     tasa_global_train)
 data_valid["tasa_fraude_categoria"] = data_valid["tasa_fraude_categoria"].fillna(
     tasa_global_train)
+"""
 # --- Variables para test---
 print("⏳ Procesando métricas geográficas y de comportamiento en DATA_TEST...")
 data_test = distancia_entre_comercios(data_test)
@@ -155,7 +156,7 @@ data_valid = distancia_entre_comercios(data_valid)
 data_valid = calcular_velocidad(data_valid)
 data_valid = distancia_cliente_comercio(data_valid)
 
-data_valid["edad"] = calcular_edad(data_test)
+data_valid["edad"] = calcular_edad(data_valid)
 #data_valid["tasa_categoria"] = calcular_anomaliaencategoria(data_valid)
 #data_valid["es_nuevo"] = nuevo_comercio(data_valid)
 
@@ -199,7 +200,7 @@ columnas_drop = [target, "trans_date_trans_time", "street", "first", "last",
 
 X_train_raw = train_df.drop(columns=[col for col in columnas_drop if col in train_df.columns])
 X_test_raw  = test_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
-X_val_raw  = val_df.drop(columns=[col for col in columnas_drop if col in test_df.columns])
+X_val_raw  = val_df.drop(columns=[col for col in columnas_drop if col in val_df.columns])
 
 y_train = train_df[target]
 y_test  = test_df[target]
@@ -257,31 +258,28 @@ print(f"✅ Columnas Train: {X_train_stat.shape[1]} | Columnas Test: {X_test_sta
 
 #Calcular los pesos inversamente proporcionales al desbalance
 conteo_clases = np.bincount(y_train_reset)
-peso_legitimas = 1.0
 peso_fraudes = conteo_clases[0] / conteo_clases[1]  # Ej: Si hay 300 veces más legítimas, el fraude pesa 300
 
-
-pesos_transacciones = np.where(y_train_reset == 1, peso_fraudes, peso_legitimas)
+from sklearn.linear_model import LogisticRegression
 
 # 5. Ajustar modelo
-logit_mod = sm.Logit(y_train_reset, X_train_stat, freq_weights=pesos_transacciones)
-
 try:
-    logit_res = logit_mod.fit_regularized(
-        method="l1",
-        alpha=0.05,
-        L1_wt=0.0,
-        start_params=np.zeros(X_train_stat.shape[1]),
-        disp=0,
-    )#metodo ridge puro
-    print("\n=== SUMMARY DE REGRESIÓN LOGÍSTICA ===")
-    print(logit_res.summary())
+    logit_sk = LogisticRegression(C=20.0, solver='saga', max_iter=300, random_state=42)
+    logit_sk.fit(
+        X_train_scaled,
+        y_train_reset,
+        sample_weight=np.where(y_train_reset == 1, peso_fraudes, 1.0)
+    )
 
-    y_prob_logit = logit_res.predict(X_test_stat)
+    print("\n=== MODELO LOGÍSTICA (SAGA) AJUSTADO CON ÉXITO ===")
+
+    y_prob_logit = logit_sk.predict_proba(X_test_scaled)[:, 1]
+
+# Evaluamos con umbral estadístico fijo
     evaluar_modelo("Regresión Logística", y_test_reset, y_prob_logit, umbral=0.1882)
 
 except Exception as e:
-    print(f"⚠️ Nota de Tesis: La Regresión Logística no convergió por inestabilidad numérica.")
+    print(f"⚠️ Nota de Tesis: La Regresión Logística con solver SAGA falló o no convergió.")
     print(f"Detalle: {e}")
 
 print("ESCANER")
@@ -342,7 +340,9 @@ evaluar_modelo("Isolation Forest", y_test, y_prob_iso, umbral=0.8109)
 
 # B. LOCAL OUTLIER FACTOR (LOF) - METODOLOGÍA DE RANGOS (20-50)
 print("⏳ Ejecutando LOF con metodología de rangos (Breunig et al.)...")
-
+#soo usaremos variables continuas para no tener problemas con a distancia euclidiana
+variables_numericas = preprocessor.named_transformers_['num'].get_feature_names_out()
+num_only_idx = [list(nombres_columnas).index(col) for col in variables_numericas]
 # Definimos el rango de vecinos a probar
 rango_vecinos = [20, 30, 40, 50]
 scores_acumulados = []
@@ -350,10 +350,10 @@ scores_acumulados = []
 for k in rango_vecinos:
     print(f"   Procesando k={k}...")
     lof = get_lof(neighbors=k)
-    lof.fit(X_train_scaled)
+    lof.fit(X_train_scaled[:,num_only_idx])
 
     # Obtenemos el score para este k, usamos signo negativo porque score_samples devuelve valores negativos para anomalías
-    current_scores = -lof.score_samples(X_test_scaled)
+    current_scores = -lof.score_samples(X_test_scaled[:,num_only_idx])
     scores_acumulados.append(current_scores)
 
 # Tomar el máximo score LOF entre todos los k
@@ -483,13 +483,15 @@ for epoch in range(num_epochs_ae):
 ae_model.eval()
 with torch.no_grad():
     # Obtener errores de reconstrucción (MSE)
-    reconst_test = ae_model(X_test_tensor)
-    mse_test_torch = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1)
-    mse_test = mse_test_torch.numpy()
-
+    reconst_train = ae_model(X_train_tensor)
+    mse_train_torch = torch.mean((X_train_tensor - reconst_train) ** 2, dim=1).numpy()
+    mse_train_normal=mse_train_torch[y_train_tensor==0]
     # Cálculo del umbral dinámico (Media + 3 * Desv. Estándar)
-    umbral_3sigma = mse_test.mean() + 3 * mse_test.std()
+    umbral_3sigma = mse_train_normal.mean() + 3 * mse_train_normal.std()
 
+    #evaluar sobre test
+    reconst_test = ae_model(X_test_tensor)
+    mse_test = torch.mean((X_test_tensor - reconst_test) ** 2, dim=1).numpy()
     evaluar_modelo(
         "Autoencoder Optimizado",
         y_test,
@@ -534,8 +536,8 @@ print("=" * 60)
 # Reseteamos el target de entrenamiento a un array limpio de NumPy
 y_train_arr = y_train.values
 
-if 'logit_res' in locals():
-    y_prob_logit_train = logit_res.predict(X_train_stat)
+if 'logit_sk' in locals():
+    y_prob_logit_train = logit_sk.predict(X_train_stat)
     evaluar_aprendizaje_train("Regresión Logística", y_train_arr, y_prob_logit_train)
 
 if 'xgb_model_final' in locals():
@@ -554,7 +556,7 @@ if 'iso_forest' in locals():
     y_prob_iso_train = (y_prob_iso_train_raw - y_prob_iso_train_raw.min()) / (
                 y_prob_iso_train_raw.max() - y_prob_iso_train_raw.min() + 1e-9)
     evaluar_aprendizaje_train("Isolation Forest", y_train_arr, y_prob_iso_train)
-
+"""
 if 'rango_vecinos' in locals():
     scores_acum_train = []
     for k in rango_vecinos:
@@ -566,7 +568,7 @@ if 'rango_vecinos' in locals():
     y_prob_lof_train = (y_prob_lof_max_train - y_prob_lof_max_train.min()) / (
                 y_prob_lof_max_train.max() - y_prob_lof_max_train.min() + 1e-9)
     evaluar_aprendizaje_train("LOF (Rango 20-50)", y_train_arr, y_prob_lof_train)
-
+"""
 if 'ae_model' in locals():
     ae_model.eval()
     with torch.no_grad():
@@ -582,17 +584,17 @@ print("✅ Auditoría de entrenamiento completada de forma exitosa.")
 print("=" * 60)
 # --- EVALUACIÓN ECONÓMICA FINAL (TESIS) ---
 
-# 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing)
-dias_data = (train_df['trans_date_trans_time'].max() - train_df['trans_date_trans_time'].min()).days
+# 1. Cálculo de Frecuencia Dinámica con Suavizado (Smoothing) con toda la muestra de entrenamiento disponible
+dias_data = (data_train['trans_date_trans_time'].max() - data_train['trans_date_trans_time'].min()).days
 if dias_data == 0: dias_data = 1
 
 # Calculamos frecuencia anual y aplicamos un piso de 6 transacciones/año para compensar el muestreo
-conteo_muestral = train_df.groupby('cc_num').size()
+conteo_muestral = data_train.groupby('cc_num').size()
 frecuencia_extrapolada = (conteo_muestral * 365 / dias_data)
 freq_map = frecuencia_extrapolada.clip(lower=6).to_dict()
 
 # 2. Monto promedio por cliente (solo legítimas)
-clv_map = train_df[train_df['is_fraud'] == 0].groupby('cc_num')['amt'].mean().to_dict()
+clv_map = data_train[data_train['is_fraud'] == 0].groupby('cc_num')['amt'].mean().to_dict()
 
 
 # 3. Construcción del Vector de CLV para el set de Test
@@ -602,8 +604,8 @@ def calc_clv_dinamico(cc):
     return (amt_avg * freq) * 0.018 * 5  # Margen 1.8% y 5 años vida media
 
 
-clv_test_vector = test_df['cc_num'].apply(calc_clv_dinamico).values
-amt_test_vector = test_df['amt'].values
+clv_test_vector = data_train['cc_num'].apply(calc_clv_dinamico).values
+amt_test_vector = data_train['amt'].values
 y_test_values = y_test.values
 
 # 4. Ejecución del Benchmark para todos los modelos del script
@@ -720,11 +722,8 @@ print("\n [ROBUSTEZ TÉCNICA] Evaluación en Diciembre con Umbrales Previos:")
 
 resultados_robustez_tecnica = []
 
-if 'logit_res' in locals():
-    # Para Statsmodels agregamos la constante obligatoria
-    X_robust_stat = sm.add_constant(pd.DataFrame(X_robust_scaled, columns=preprocessor.get_feature_names_out()))
-    X_robust_stat = X_robust_stat.reindex(columns=X_train_stat.columns, fill_value=0)
-    y_prob_logit_rob = logit_res.predict(X_robust_stat)
+if 'logit_sk' in locals():
+    y_prob_logit_rob = logit_sk.predict_proba(X_robust_scaled)[:, 1]
     res = evaluar_modelo("Regresión Logística (Rob)", y_robust_real, y_prob_logit_rob,
                          umbral=info_modelos['Regresión Logística']['umbral_f1'])
     resultados_robustez_tecnica.append(res)
@@ -752,8 +751,8 @@ if 'rango_vecinos' in locals():
     scores_acum_rob = []
     for k in rango_vecinos:
         lof = get_lof(neighbors=k)
-        lof.fit(X_train_scaled)  # Mantiene la vecindad de Train
-        scores_acum_rob.append(-lof.score_samples(X_robust_scaled))
+        lof.fit(X_train_scaled[:, num_only_idx])
+        scores_acum_rob.append(-lof.score_samples(X_robust_scaled[:, num_only_idx]))
     y_prob_lof_rob_max = np.maximum.reduce(scores_acum_rob)
     y_prob_lof_rob_norm = (y_prob_lof_rob_max - y_prob_lof_rob_max.min()) / (
                 y_prob_lof_rob_max.max() - y_prob_lof_rob_max.min() + 1e-9)
@@ -887,16 +886,16 @@ nombres_columnas = preprocessor.get_feature_names_out()
 aplicar_shap_tesis_final(xgb_model_final, X_test_scaled, nombres_columnas, "XGBoost")
 aplicar_shap_tesis_final(mlp_model, X_test_scaled, nombres_columnas, "MLP", es_pytorch=True)
 
-# CORREGIDO: Pasamos logit_res y activamos el flag de statsmodels
-aplicar_shap_tesis_final(logit_res, X_test_scaled, nombres_columnas, "Regresión Logística", es_statsmodels=True)
+# CORREGIDO: Pasamos logit_sk y activamos el flag de statsmodels
+aplicar_shap_tesis_final(logit_sk, X_test_scaled, nombres_columnas, "Regresión Logística", es_statsmodels=False)
 
 # Modelos No Supervisados / Anomalías
 aplicar_shap_tesis_final(iso_forest, X_test_scaled, nombres_columnas, "Isolation Forest")
 aplicar_shap_tesis_final(ae_model, X_test_scaled, nombres_columnas, "Autoencoder", es_pytorch=True)
 # Ejecución de la interpretabilidad para LOF
 df_res_lofo = aplicar_lofo_tesis_final(
-    X_train_scaled,
-    X_test_scaled,
-    nombres_columnas,
+    X_train_scaled[:, num_only_idx],
+    X_test_scaled[:, num_only_idx],
+    nombres_columnas[num_only_idx],
     nombre_modelo="LOF_Rango_20_50"
 )
