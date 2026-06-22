@@ -28,7 +28,7 @@ data_test=buscar_y_cargar("fraudTest.csv")
 data=pd.concat([data_train, data_test], ignore_index=True)
 data['trans_date_trans_time'] = pd.to_datetime(data['trans_date_trans_time'])
 #Se calcula nuevo comercio sobre la data original para que no existan 3 periodos distintos de enfriamiento, las bases solo tienen información anterior y no futura
-data["es_nuevo"] = nuevo_comercio(data)
+#data["es_nuevo"] = nuevo_comercio(data)
 
 #--------------------------
 #Codigo para ver fechas de inicio y fin de las transacciones de cada mes para dividir de forma exacta la base
@@ -237,9 +237,7 @@ X_test_final = pd.DataFrame(X_test_scaled, columns=nombres_columnas)
 y_train_reset = y_train.reset_index(drop=True)
 y_test_reset = y_test.reset_index(drop=True)
 
-# 3. Agregar constante
-X_train_stat = sm.add_constant(X_train_final)
-X_test_stat = sm.add_constant(X_test_final)
+
 
 #Guardar data 
 
@@ -247,13 +245,6 @@ X_train_final.to_csv("X_train_procesado.csv", index=False)
 X_test_final.to_csv("X_test_procesado.csv", index=False)
 y_train_reset.to_frame(name='is_fraud').to_csv("y_train_procesado.csv", index=False)
 y_test_reset.to_frame(name='is_fraud').to_csv("y_test_procesado.csv", index=False)
-
-
-# 4. Asegurar que las columnas de Test sean IDENTICAS a las de Train
-# Si falta una columna en Test que estaba en Train, la crea con ceros
-X_test_stat = X_test_stat.reindex(columns=X_train_stat.columns, fill_value=0)
-
-print(f"✅ Columnas Train: {X_train_stat.shape[1]} | Columnas Test: {X_test_stat.shape[1]}")
 
 
 #Calcular los pesos inversamente proporcionales al desbalance
@@ -485,7 +476,7 @@ with torch.no_grad():
     # Obtener errores de reconstrucción (MSE)
     reconst_train = ae_model(X_train_tensor)
     mse_train_torch = torch.mean((X_train_tensor - reconst_train) ** 2, dim=1).numpy()
-    mse_train_normal=mse_train_torch[y_train_tensor==0]
+    mse_train_normal=mse_train_torch[y_train_tensor.flatten() == 0]
     # Cálculo del umbral dinámico (Media + 3 * Desv. Estándar)
     umbral_3sigma = mse_train_normal.mean() + 3 * mse_train_normal.std()
 
@@ -537,8 +528,8 @@ print("=" * 60)
 y_train_arr = y_train.values
 
 if 'logit_sk' in locals():
-    y_prob_logit_train = logit_sk.predict(X_train_stat)
-    evaluar_aprendizaje_train("Regresión Logística", y_train_arr, y_prob_logit_train)
+    y_prob_logit_train = logit_sk.predict(X_train_scaled)
+    evaluar_aprendizaje_train("Regresión Logística", y_train_reset, y_prob_logit_train)
 
 if 'xgb_model_final' in locals():
     y_prob_xgb_train = xgb_model_final.predict_proba(X_train_scaled)[:, 1]
