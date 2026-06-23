@@ -12,6 +12,7 @@ random.seed(42)
 torch.manual_seed(42)
 
 if torch.cuda.is_available():
+
     torch.cuda.manual_seed_all(42)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -590,13 +591,13 @@ clv_map = data_train[data_train['is_fraud'] == 0].groupby('cc_num')['amt'].mean(
 
 # 3. Construcción del Vector de CLV para el set de Test
 def calc_clv_dinamico(cc):
-    amt_avg = clv_map.get(cc, train_df['amt'].mean())
+    amt_avg = clv_map.get(cc, data_train['amt'].mean())
     freq = freq_map.get(cc, 6)  # Si el cliente no está en train, usamos el piso
     return (amt_avg * freq) * 0.018 * 5  # Margen 1.8% y 5 años vida media
 
 
-clv_test_vector = data_train['cc_num'].apply(calc_clv_dinamico).values
-amt_test_vector = data_train['amt'].values
+clv_test_vector = train_df['cc_num'].apply(calc_clv_dinamico).values
+amt_test_vector = train_df['amt'].values
 y_test_values = y_test.values
 
 # 4. Ejecución del Benchmark para todos los modelos del script
