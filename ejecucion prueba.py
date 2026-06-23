@@ -596,8 +596,8 @@ def calc_clv_dinamico(cc):
     return (amt_avg * freq) * 0.018 * 5  # Margen 1.8% y 5 años vida media
 
 
-clv_test_vector = train_df['cc_num'].apply(calc_clv_dinamico).values
-amt_test_vector = train_df['amt'].values
+clv_test_vector = test_df['cc_num'].apply(calc_clv_dinamico).values
+amt_test_vector = test_df['amt'].values
 y_test_values = y_test.values
 
 # 4. Ejecución del Benchmark para todos los modelos del script
