@@ -58,7 +58,7 @@ fecha_entreno_fin    = '2020-06-21 12:13:37'
 fecha_val_inicio="2020-06-21 12:14:25"
 fecha_val_fin="2020-08-31 23:59:31"
 fecha_prueba_inicio  = '2020-09-01 00:01:26'
-fecha_prueba_fin     = '2020-11-30 23:59:45'
+fecha_prueba_fin     = '2020-12-31 23:59:34'
 
 # Extraemos los conjuntos completos respetando los cortes temporales estrictos
 data_train = data[(data['trans_date_trans_time'] >= fecha_entreno_inicio) &
